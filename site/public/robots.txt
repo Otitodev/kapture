@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://trykapture.com/sitemap-index.xml

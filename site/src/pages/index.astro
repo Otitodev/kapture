@@ -6,11 +6,26 @@ import Bento from '../components/Bento.astro';
 import Privacy from '../components/Privacy.astro';
 import CTA from '../components/CTA.astro';
 import Footer from '../components/Footer.astro';
+import { REPO_URL, SITE_URL } from '../consts';
+
+const appData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Kapture',
+  url: SITE_URL,
+  description: 'A local-first Chrome extension for screenshots, screen recording, annotation, and an on-device capture library.',
+  applicationCategory: 'BrowserApplication',
+  operatingSystem: 'Desktop Google Chrome',
+  image: new URL('/og-image-1200x630.png', SITE_URL).toString(),
+  sameAs: REPO_URL,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+};
 ---
 
 <Base
-  title="Kapture — free, local-first screenshots and screen recording"
-  description="Capture, annotate, and record your screen. No account or cloud upload; captures stay on your device until you choose to export."
+  title="Kapture — Private Screenshots & Screen Recording for Chrome"
+  description="Capture screenshots and record your screen with Kapture for Chrome. Annotate, search, and save locally. Free to build and install from GitHub."
+  structuredData={appData}
 >
   <Nav />
   <main id="main-content">

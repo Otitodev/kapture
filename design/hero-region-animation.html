@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kapture region capture hero</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 960px; height: 600px; margin: 0; overflow: hidden; }
+    body { background: #fff; color: #171717; font-family: Arial, Helvetica, sans-serif; }
+    nav { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 38px; border-bottom: 1px solid #f1f1f1; }
+    nav strong { font-size: 17px; letter-spacing: -.04em; }
+    nav div { display: flex; gap: 27px; color: #555; font-size: 12px; }
+    main { padding-top: 46px; text-align: center; }
+    h1 { margin: 0; font-size: 43px; line-height: 1.1; letter-spacing: -.045em; font-weight: 700; }
+    .subtitle { margin: 19px 0 44px; color: #5f6368; font-size: 15px; }
+    .cards { display: flex; width: 622px; margin: 0 auto; gap: 16px; text-align: left; }
+    .card { flex: 1; height: 188px; padding: 20px; border: 1px solid #e2e4e7; border-radius: 10px; background: #fff; }
+    .card b { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #555; }
+    .price { margin: 16px 0 12px; font-size: 31px; line-height: 1; letter-spacing: -.05em; }
+    .card p { margin: 0; color: #62666b; font-size: 11px; line-height: 1.8; }
+    .shade { position: absolute; background: rgba(0, 0, 0, .58); }
+    .selection { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .13); }
+    .handle { position: absolute; width: 7px; height: 7px; background: #fff; transform: translate(-50%, -50%); }
+    .hint, .size, .actions { position: absolute; background: #171717; color: #fff; border-radius: 5px; }
+    .hint { top: 17px; left: 350px; width: 260px; height: 31px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 11px; }
+    .hint .muted { color: #a9aaad; }
+    .size { padding: 5px 8px; font: 10px Arial, sans-serif; }
+    .actions { display: flex; align-items: center; gap: 2px; padding: 4px; box-shadow: 0 5px 14px rgba(0, 0, 0, .18); }
+    .actions span { padding: 7px 11px; font-size: 11px; font-weight: 600; }
+    .actions .primary { background: #fff; color: #171717; border-radius: 3px; }
+    .cursor { position: absolute; width: 17px; height: 17px; opacity: .95; }
+    .cursor::before, .cursor::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 1px #111; }
+    .cursor::before { left: 8px; width: 1px; height: 17px; }
+    .cursor::after { top: 8px; height: 1px; width: 17px; }
+  </style>
+</head>
+<body>
+  <nav><strong>acme</strong><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></nav>
+  <main>
+    <h1>pricing that scales<br>with your team</h1>
+    <p class="subtitle">start free. upgrade when you need more seats, history or support.</p>
+    <div class="cards">
+      <div class="card"><b>starter</b><div class="price">$0</div><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="card"><b>team</b><div class="price">$12</div><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="card"><b>business</b><div class="price">$29</div><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </main>
+  <div id="top" class="shade"></div><div id="bottom" class="shade"></div><div id="left" class="shade"></div><div id="right" class="shade"></div>
+  <div id="selection" class="selection"></div>
+  <div id="handles"></div>
+  <div id="hint" class="hint"><span id="hint-action">drag to select</span><span class="muted">·</span><span class="muted">esc to cancel</span></div>
+  <div id="size" class="size"></div>
+  <div id="actions" class="actions"><span>copy</span><span>save</span><span class="primary">annotate</span></div>
+  <div id="cursor" class="cursor"></div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const rect = (id, x, y, w, h) => Object.assign($(id).style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+    const start = { x: 155, y: 92 };
+    const end = { x: 805, y: 500 };
+    const handles = [[0,0],[.5,0],[1,0],[0,.5],[1,.5],[0,1],[.5,1],[1,1]];
+    $('handles').innerHTML = handles.map(() => '<div class="handle"></div>').join('');
+    window.renderFrame = (frame) => {
+      const t = frame / 20;
+      const raw = Math.max(0, Math.min(1, (t - .18) / .86));
+      const progress = raw * raw * (3 - 2 * raw);
+      const selected = t >= 1.15;
+      const x = start.x, y = start.y;
+      const w = Math.max(2, Math.round((end.x - x) * progress));
+      const h = Math.max(2, Math.round((end.y - y) * progress));
+      rect('top', 0, 0, 960, y);
+      rect('bottom', 0, y + h, 960, 600 - y - h);
+      rect('left', 0, y, x, h);
+      rect('right', x + w, y, 960 - x - w, h);
+      rect('selection', x, y, w, h);
+      $('selection').style.opacity = progress > 0 ? '1' : '0';
+      $('handles').style.display = selected ? 'block' : 'none';
+      [...$('handles').children].forEach((el, i) => {
+        el.style.left = `${x + w * handles[i][0]}px`;
+        el.style.top = `${y + h * handles[i][1]}px`;
+      });
+      $('hint-action').textContent = selected ? 'enter to annotate' : 'drag to select';
+      $('size').textContent = `${w} × ${h}`;
+      $('size').style.left = `${x}px`;
+      $('size').style.top = `${y - 27}px`;
+      $('size').style.display = progress > .15 ? 'block' : 'none';
+      $('actions').style.left = `${end.x - 200}px`;
+      $('actions').style.top = `${end.y + 12}px`;
+      $('actions').style.display = selected ? 'flex' : 'none';
+      $('cursor').style.left = `${x + w - 8}px`;
+      $('cursor').style.top = `${y + h - 8}px`;
+      $('cursor').style.display = selected || t < .18 ? 'none' : 'block';
+    };
+    window.renderFrame(0);
+  </script>
+</body>
+</html>

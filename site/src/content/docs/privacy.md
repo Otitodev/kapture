@@ -3,8 +3,6 @@ title: Privacy
 description: What Kapture stores locally and what happens when you export a capture.
 ---
 
-# Privacy
-
 Kapture handles browser data only when you start a capture. It does not run
 analytics, create an account, or upload captures to Kapture or another server.
 

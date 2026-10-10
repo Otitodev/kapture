@@ -1,0 +1,38 @@
+---
+const prompt = `Help me install Kapture, a Chrome screenshot and screen recording extension, from its public source: https://github.com/Otitodev/kapture.
+
+1. Check that this computer has Node.js 22, pnpm, Git, and desktop Google Chrome. Tell me if a prerequisite is missing.
+2. Clone the repository, or use my existing checkout. In the kapture folder, run: pnpm install --frozen-lockfile, then pnpm build.
+3. Confirm that .output/chrome-mv3/manifest.json exists after the build.
+4. Help me open chrome://extensions, enable Developer mode, and choose Load unpacked with the .output/chrome-mv3 folder. If you cannot control Chrome's extension page, give me these exact manual steps.
+5. Confirm that Kapture appears in Chrome's extensions list and that its popup opens. Keep installation local; do not publish or upload anything.`;
+---
+
+<section class="mt-10 rounded-xl border border-rule bg-surface p-5 sm:p-6" aria-labelledby="agent-install-heading">
+  <h2 id="agent-install-heading" class="text-2xl font-semibold text-fg">Install with a coding agent</h2>
+  <p class="mt-3 text-[16px] leading-7 text-muted">Copy this prompt into your coding agent or LLM to get help building and loading Kapture from GitHub.</p>
+  <label for="agent-install-prompt" class="sr-only">Instructions for a coding agent to install Kapture</label>
+  <textarea id="agent-install-prompt" readonly rows="18" class="mt-4 block w-full resize-y rounded-md border border-rule bg-bg p-4 font-mono text-[12px] leading-5 text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg">{prompt}</textarea>
+  <div class="mt-4 flex flex-wrap items-center gap-3">
+    <button id="copy-agent-prompt" type="button" aria-controls="agent-install-prompt" class="min-h-11 rounded-md bg-fg px-5 text-[14px] font-semibold text-bg">Copy for agent</button>
+    <span id="copy-agent-status" role="status" aria-live="polite" class="text-[13px] text-muted"></span>
+  </div>
+</section>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('#copy-agent-prompt');
+  const prompt = document.querySelector<HTMLTextAreaElement>('#agent-install-prompt');
+  const status = document.querySelector<HTMLElement>('#copy-agent-status');
+
+  button?.addEventListener('click', async () => {
+    if (!prompt || !status) return;
+    try {
+      await navigator.clipboard.writeText(prompt.value);
+      status.textContent = 'Copied to clipboard.';
+    } catch {
+      prompt.focus();
+      prompt.select();
+      status.textContent = 'Text selected. Press Ctrl+C or Cmd+C to copy.';
+    }
+  });
+</script>

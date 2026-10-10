@@ -6,9 +6,11 @@ interface Props {
   title: string;
   description: string;
   image?: string;
+  noindex?: boolean;
+  structuredData?: Record<string, unknown>;
 }
 
-const { title, description, image = '/og-image-1200x630.png' } = Astro.props;
+const { title, description, image = '/og-image-1200x630.png', noindex = false, structuredData } = Astro.props;
 const canonical = new URL(Astro.url.pathname, SITE_URL).toString();
 const ogImage = new URL(image, SITE_URL).toString();
 ---
@@ -20,20 +22,24 @@ const ogImage = new URL(image, SITE_URL).toString();
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#181818" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kapture" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content="Kapture screenshot and screen recording extension" />
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
+    {structuredData && <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />}
   </head>
   <body>
     <a href="#main-content" class="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:not-sr-only focus:rounded-md focus:bg-fg focus:px-4 focus:py-3 focus:text-bg">Skip to main content</a>

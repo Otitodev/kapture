@@ -3,8 +3,6 @@ title: Capture modes
 description: Every way to capture with Kapture and the shortcut for each.
 ---
 
-# Capture modes
-
 <div class="table-scroll" role="region" aria-label="Capture modes" tabindex="0">
   <table>
     <caption class="sr-only">Capture modes, keyboard shortcuts, and details</caption>

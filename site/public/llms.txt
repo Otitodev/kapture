@@ -1,0 +1,13 @@
+# Kapture
+
+> Kapture is a free, local-first Chrome extension for screenshots, screen recording, annotation, and an on-device library. It does not require an account or upload captures.
+
+Official site: https://trykapture.com/
+Source code: https://github.com/Otitodev/kapture
+
+## Useful pages
+
+- Install from GitHub while the Chrome Web Store listing is under review: https://trykapture.com/docs/install/
+- Capture modes and shortcuts: https://trykapture.com/docs/capture-modes/
+- Privacy and local data handling: https://trykapture.com/docs/privacy/
+- Changelog: https://trykapture.com/changelog/
