@@ -177,18 +177,6 @@ export default defineBackground(() => {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
-    // Self-check for tests/QA: record a generated clip in the offscreen document.
-    'recording:synthetic': async ({ mic, title, url } = {}) => {
-      if (!(await requireCaptureDisclosure())) return { ok: false, error: CAPTURE_DISCLOSURE_REQUIRED_MESSAGE };
-      try {
-        await ensureOffscreenDocument();
-        const res = await sendMessage('record:synthetic', { mic, title, url });
-        await browser.storage.local.set({ [RECORDING_FLAG_KEY]: false }).catch(() => {});
-        return { ok: res?.ok ?? false, id: res?.id, mime: res?.mime, bytes: res?.bytes, chunks: res?.chunks, error: res?.error };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
-    },
     'recording:status': async () => {
       const stored = (await browser.storage.local.get(RECORDING_FLAG_KEY))[RECORDING_FLAG_KEY];
       return { recording: stored === true };

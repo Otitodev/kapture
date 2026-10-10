@@ -499,48 +499,89 @@ test('delayed capture saves and opens the editor', async () => {
   await expect(ed.getByTestId('capture-image')).toBeVisible();
 });
 
-test('recording:synthetic produces a playable, video-type recording in the editor', async () => {
+test('a saved recording plays in the editor and lists in the library', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  const res = await page.evaluate(() =>
-    chrome.runtime.sendMessage({
-      kapture: true,
-      type: 'recording:synthetic',
-      target: 'background',
-      payload: { title: 'Synthetic walkthrough', url: 'https://demo.example/watch' },
-    }),
-  );
-  expect(res.ok).toBe(true);
+  // Record a real clip with page-level media APIs (no extension test hook):
+  // an animated canvas provides video frames for the encoder.
+  const id = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d')!;
+    let x = 0;
+    const timer = window.setInterval(() => {
+      x = (x + 12) % 280;
+      ctx.fillStyle = '#181818';
+      ctx.fillRect(0, 0, 320, 180);
+      ctx.fillStyle = '#3b82f6';
+      ctx.fillRect(x, 40, 40, 40);
+    }, 50);
+    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: 'video/webm' });
+    const parts: Blob[] = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) parts.push(e.data);
+    };
+    const done = new Promise<void>((res) => {
+      rec.onstop = () => res();
+    });
+    rec.start(100);
+    await new Promise((res) => setTimeout(res, 1000));
+    rec.stop();
+    await done;
+    window.clearInterval(timer);
+    const blob = new Blob(parts, { type: rec.mimeType || 'video/webm' });
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res2, rej) => {
+      open.onsuccess = () => res2(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    const rowId = 'e2e-recording';
+    await new Promise<void>((res2, rej) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put({
+        id: rowId,
+        type: 'recording',
+        blob,
+        url: 'https://demo.example/watch',
+        title: 'Demo walkthrough',
+        createdAt: Date.now(),
+        tags: [],
+      });
+      tx.oncomplete = () => res2();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+    return rowId;
+  });
 
-  // The blob persisted in IndexedDB is a non-empty WebM recording.
-
-  // The blob persisted in IndexedDB is a non-empty WebM recording.
-  const info = await page.evaluate(async (id) => {
+  // The blob persisted in IndexedDB is a non-empty video recording.
+  const info = await page.evaluate(async (rowId) => {
     const open = indexedDB.open('kapture', 2);
     const db: IDBDatabase = await new Promise((res2, rej) => {
       open.onsuccess = () => res2(open.result);
       open.onerror = () => rej(open.error);
     });
     const row = await new Promise<any>((res2) => {
-      const req = db.transaction('captures').objectStore('captures').get(id);
+      const req = db.transaction('captures').objectStore('captures').get(rowId);
       req.onsuccess = () => res2(req.result);
     });
     return { type: row?.blob?.type, size: row?.blob?.size, recordType: row?.type, title: row?.title, url: row?.url };
-  }, res.id);
+  }, id);
   expect(info.recordType).toBe('recording');
-  expect(info.title).toBe('Synthetic walkthrough');
+  expect(info.title).toBe('Demo walkthrough');
   expect(info.url).toBe('https://demo.example/watch');
   expect(info.type).toMatch(/^video\/(mp4|webm)/);
   expect(info.size).toBeGreaterThan(1000); // a real, non-trivial clip
 
   // The editor renders it in a <video> player from the saved blob, with a matching filename.
   const expectedExt = info.type.startsWith('video/mp4') ? 'mp4' : 'webm';
-  await page.goto(`chrome-extension://${extensionId}/editor.html?id=${res.id}`);
+  await page.goto(`chrome-extension://${extensionId}/editor.html?id=${id}`);
   await page.waitForSelector('video[src^="blob:"]', { timeout: 5000 });
   await expect(page.getByText(new RegExp(`\\.${expectedExt}$`)).first()).toBeVisible();
 
   await page.goto(`chrome-extension://${extensionId}/library.html`);
-  await expect(page.getByText('Synthetic walkthrough')).toBeVisible();
+  await expect(page.getByText('Demo walkthrough')).toBeVisible();
   const videoThumbnail = page.getByTestId('history-video-thumbnail');
   await expect(videoThumbnail).toBeVisible();
   await expect.poll(() => videoThumbnail.evaluate((el) => {
@@ -549,7 +590,7 @@ test('recording:synthetic produces a playable, video-type recording in the edito
   }), { timeout: 8000 }).toBe(true);
 });
 
-test('recording: mic toggle persists and mic recordings save', async () => {
+test('recording: mic toggle persists across popup opens', async () => {
   const { popup } = await activeFakePage();
   const mic = popup.getByRole('switch', { name: 'microphone' });
   await expect(mic).toHaveAttribute('aria-checked', 'false');
@@ -559,28 +600,6 @@ test('recording: mic toggle persists and mic recordings save', async () => {
   // The preference survives the popup closing (it is stored, not component state).
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(popup.getByRole('switch', { name: 'microphone' })).toHaveAttribute('aria-checked', 'true');
-
-  // Real tab capture is unavailable headless, so exercise the mic request path
-  // through the synthetic recorder: headless denies the mic fast (no hang),
-  // the fallback keeps the synth tone, and the clip still saves.
-  const res = await popup.evaluate(() =>
-    chrome.runtime.sendMessage({ kapture: true, type: 'recording:synthetic', target: 'background', payload: { mic: true } }),
-  );
-  expect(res.ok).toBe(true);
-  const info = await popup.evaluate(async (id) => {
-    const open = indexedDB.open('kapture', 2);
-    const db: IDBDatabase = await new Promise((res2, rej) => {
-      open.onsuccess = () => res2(open.result);
-      open.onerror = () => rej(open.error);
-    });
-    const row = await new Promise<any>((res2) => {
-      const req = db.transaction('captures').objectStore('captures').get(id);
-      req.onsuccess = () => res2(req.result);
-    });
-    return { type: row?.blob?.type, size: row?.blob?.size, recordType: row?.type };
-  }, res.id);
-  expect(info.recordType).toBe('recording');
-  expect(info.size).toBeGreaterThan(1000);
 });
 
 test('element: clicking an element captures it and opens the editor', async () => {

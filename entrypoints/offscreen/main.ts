@@ -13,7 +13,6 @@ let maxStopTimer: number | null = null;
 let primaryStream: MediaStream | null = null;
 let micStreamRef: MediaStream | null = null;
 let mixCtx: AudioContext | null = null;
-let syntheticCleanup: (() => void) | null = null;
 
 let store: CaptureStore | null = null;
 
@@ -43,8 +42,6 @@ function releaseStreams(): void {
   primaryStream = null;
   micStreamRef = null;
   stream = null;
-  syntheticCleanup?.();
-  syntheticCleanup = null;
 }
 
 /** Call only after the recorder's final onstop data has been assembled. */
@@ -69,14 +66,6 @@ onMessage('offscreen', {
   },
   'record:stop': async () => stopRecording(),
   'record:cancel': async () => cancelRecording(),
-  'record:synthetic': async ({ mic, title, url }) => {
-    await staleChunkCleanup;
-    const begun = await beginRecording(null, 'synthetic', mic ?? false, { title, url });
-    if (!begun.ok) return begun;
-    // Generous window: encoder warmup under suite load makes 1200ms marginal.
-    await new Promise<void>((res) => setTimeout(res, 3000));
-    return stopRecording();
-  },
 });
 
 /** Returns the final stream for the recorder: original video + mixed audio (primary + optional mic). */
@@ -102,58 +91,9 @@ function finalizeMixedStream(primary: MediaStream, mic: MediaStream | null): Med
   return out;
 }
 
-/** A real, self-contained MediaStream: animated canvas video + a synthesized tone as the "mic". */
-function synthInputs(): { primary: MediaStream; mic: MediaStream; dispose: () => void } {
-  const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 360;
-  const ctx = canvas.getContext('2d')!;
-  const videoStream = (canvas as HTMLCanvasElement).captureStream(30);
-  const videoTrack = videoStream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void });
-  let x = 0;
-  let dir = 1;
-  const draw = () => {
-    x += dir * 8;
-    if (x > 560 || x < 0) dir = -dir;
-    ctx.fillStyle = '#181818';
-    ctx.fillRect(0, 0, 640, 360);
-    ctx.fillStyle = '#3b82f6';
-    ctx.fillRect(x, 40, 40, 40);
-    videoTrack.requestFrame?.();
-  };
-  draw();
-  const drawTimer = window.setInterval(draw, 40); // requestAnimationFrame doesn't run in an offscreen doc; tick manually.
-
-  const oscCtx = new AudioContext();
-  const osc = oscCtx.createOscillator();
-  osc.frequency.value = 440;
-  const gain = oscCtx.createGain();
-  gain.gain.value = 0.08;
-  const synthDest = oscCtx.createMediaStreamDestination();
-  osc.connect(gain);
-  gain.connect(synthDest);
-  osc.start();
-
-  let disposed = false;
-  const dispose = () => {
-    if (disposed) return;
-    disposed = true;
-    clearInterval(drawTimer);
-    try {
-      osc.stop();
-    } catch {
-      // Already stopped.
-    }
-    for (const track of [...videoStream.getTracks(), ...synthDest.stream.getTracks()]) track.stop();
-    void oscCtx.close().catch(() => {});
-  };
-
-  return { primary: new MediaStream(videoStream.getVideoTracks()), mic: synthDest.stream, dispose };
-}
-
 async function beginRecording(
   streamId: string | null,
-  mode: 'tab' | 'screen' | 'synthetic',
+  mode: 'tab' | 'screen',
   mic = false,
   metadata: { title?: string; url?: string } = {},
 ): Promise<{ ok: boolean; error?: string }> {
@@ -164,15 +104,7 @@ async function beginRecording(
     let primary: MediaStream;
     let micStream: MediaStream | null = null;
 
-    if (mode === 'synthetic') {
-      const s = synthInputs();
-      primary = s.primary;
-      syntheticCleanup = s.dispose;
-      // Mic toggle on: prefer a real microphone, fall back to the synth tone.
-      micStream = mic
-        ? await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null) ?? s.mic
-        : s.mic;
-    } else if (mode === 'screen') {
+    if (mode === 'screen') {
       primary = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       if (mic) micStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
     } else {
@@ -190,7 +122,7 @@ async function beginRecording(
     watchPrimaryTracks(primary);
     sessionId = crypto.randomUUID();
     recordingMetadata = {
-      title: metadata.title?.trim() || (mode === 'screen' ? 'Screen recording' : mode === 'synthetic' ? 'Synthetic recording' : 'Tab recording'),
+      title: metadata.title?.trim() || (mode === 'screen' ? 'Screen recording' : 'Tab recording'),
       url: metadata.url ?? '',
     };
     chunkIndex = 0;

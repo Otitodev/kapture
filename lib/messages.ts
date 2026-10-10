@@ -39,16 +39,13 @@ export interface MessageMap {
   /** Whether a recording is currently active. */
   'recording:status': { target: 'background'; req: Record<string, never>; res: { recording: boolean } };
   /** Background tells the offscreen document to start the MediaRecorder. */
-  'record:begin': { target: 'offscreen'; req: { streamId: string | null; mode?: 'tab' | 'screen' | 'synthetic'; mic?: boolean; title?: string; url?: string }; res: { ok: boolean; error?: string } };
+  'record:begin': { target: 'offscreen'; req: { streamId: string | null; mode?: 'tab' | 'screen'; mic?: boolean; title?: string; url?: string }; res: { ok: boolean; error?: string } };
   /** Background asks the offscreen document to stop and save the clip. */
   'record:stop': { target: 'offscreen'; req: Record<string, never>; res: { ok: boolean; id?: string; mime?: string; bytes?: number; chunks?: number; error?: string } };
   /** Offscreen reports a finished recording (explicit stop, length cap, or source-ended). Background clears the flag and opens it. */
   'record:finished': { target: 'background'; req: { id: string }; res: { ok: true } };
   /** Background asks the offscreen document to discard the recording. */
   'record:cancel': { target: 'offscreen'; req: Record<string, never>; res: { ok: boolean; error?: string } };
-  /** Telemetry-free self-check: offscreen records a generated clip and saves it. */
-  'record:synthetic': { target: 'offscreen'; req: { mic?: boolean; title?: string; url?: string }; res: { ok: boolean; id?: string; mime?: string; bytes?: number; chunks?: number; error?: string } };
-  'recording:synthetic': { target: 'background'; req: { mic?: boolean; title?: string; url?: string }; res: { ok: boolean; id?: string; mime?: string; bytes?: number; chunks?: number; error?: string } };
   /** Background tells the page to show the in-page recording control bar. */
   'record:show': { target: 'content'; req: Record<string, never>; res: { ok: true } };
 }
@@ -87,8 +84,6 @@ const TARGETS: { [K in MessageType]: MessageMap[K]['target'] } = {
   'record:finished': 'background',
   'record:cancel': 'offscreen',
   'record:show': 'content',
-  'record:synthetic': 'offscreen',
-  'recording:synthetic': 'background',
 };
 
 export async function sendMessage<T extends MessageType>(
