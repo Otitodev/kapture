@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / recording</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .bar { position: absolute; display: flex; align-items: center; gap: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .bar .sep { width: 1px; height: 22px; background: var(--rule); margin: 0 6px; }
+  .rec-dot { width: 10px; height: 10px; border-radius: 99px; background: var(--record); }
+  .cam { position: absolute; width: 144px; height: 144px; border-radius: 99px; background: #2d2d2d; border: 3px solid var(--fg); overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+  .cam .head { position: absolute; top: 34px; width: 44px; height: 44px; border-radius: 99px; background: #6b6b6b; }
+  .cam .body { position: absolute; top: 86px; width: 92px; height: 80px; border-radius: 46px 46px 0 0; background: #6b6b6b; }
+  .big { font-weight: 300; font-size: 160px; line-height: 160px; letter-spacing: -0.04em; color: var(--fg); }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+
+<div class="cap" style="width:1280px">04 / countdown before recording starts</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+  <div class="dim" style="inset:0;background:rgba(0,0,0,.62)"></div>
+  <div class="col" style="position:absolute;inset:0;align-items:center;justify-content:center;gap:20px">
+    <div class="big">3</div>
+    <div class="row gap-3"><span class="small" style="color:var(--fg)">recording this tab</span><span class="small muted">·</span><span class="mono muted">esc</span><span class="small muted">to cancel</span></div>
+  </div>
+</div>
+
+<div class="cap" style="width:1280px">04b / recording · bar at bottom, camera bubble, draw tool off</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+  <!-- click ripple -->
+  <div style="position:absolute;left:520px;top:384px;width:44px;height:44px;border-radius:99px;border:2px solid rgba(255,90,79,.9);background:rgba(255,90,79,.18)"></div>
+  <!-- camera bubble -->
+  <div class="cam" style="left:40px;bottom:40px"><div class="head"></div><div class="body"></div></div>
+  <!-- bar -->
+  <div class="bar" style="left:50%;bottom:36px;transform:translateX(-50%)">
+    <div class="row gap-2" style="padding:0 12px 0 8px"><span class="rec-dot"></span><span class="mono" style="font-size:13px">00:42</span></div>
+    <div class="sep"></div>
+    <div class="tool sm"><i data-i="pause"></i></div>
+    <div class="tool sm"><i data-i="mic"></i></div>
+    <div class="tool sm"><i data-i="cam"></i></div>
+    <div class="tool sm"><i data-i="draw"></i></div>
+    <div class="sep"></div>
+    <div class="btn sm btn-solid-record"><i data-i="stop" data-s="14"></i>stop</div>
+  </div>
+</div>
+
+<div class="cap" style="width:1280px">04c / paused, mic muted, drawing on the page</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+  <svg style="position:absolute;left:0;top:0" width="1280" height="800" viewBox="0 0 1280 800"><path d="M440 350 C 470 330, 600 340, 640 360 S 700 410, 600 440" stroke="#ff5a4f" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
+  <div class="bar" style="left:50%;bottom:36px;transform:translateX(-50%)">
+    <div class="row gap-2" style="padding:0 12px 0 8px"><span class="rec-dot" style="background:var(--muted)"></span><span class="mono" style="font-size:13px;color:var(--muted)">paused · 01:08</span></div>
+    <div class="sep"></div>
+    <div class="tool sm active"><i data-i="play"></i></div>
+    <div class="tool sm" style="color:var(--record)"><i data-i="micoff"></i></div>
+    <div class="tool sm"><i data-i="cam"></i></div>
+    <div class="tool sm active"><i data-i="draw"></i></div>
+    <div class="sep"></div>
+    <div class="btn sm btn-solid-record"><i data-i="stop" data-s="14"></i>stop</div>
+  </div>
+  <div class="bar" style="left:50%;bottom:92px;transform:translateX(-50%);padding:6px 10px;gap:10px">
+    <div class="swatch sel" style="background:#ff5a4f"></div><div class="swatch" style="background:#ffd60a"></div><div class="swatch" style="background:#3b82f6"></div><div class="swatch" style="background:#34c76a"></div>
+    <div class="sep" style="margin:0"></div><span class="small muted">drawings fade after 3s</span>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

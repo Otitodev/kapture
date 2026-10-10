@@ -1,0 +1,20 @@
+---
+const links = [
+  { label: 'privacy', href: '/docs/privacy/' },
+  { label: 'github', href: 'https://github.com/Otitodev/kapture' },
+  { label: 'changelog', href: '/changelog/' },
+  { label: 'contact', href: 'mailto:otitodrichukwu@gmail.com' },
+];
+---
+
+<footer class="flex flex-col items-start gap-4 border-t border-rule px-5 py-7 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5 sm:px-8 sm:py-10 lg:px-16">
+  <span class="text-[16px] font-semibold text-fg">kapture</span>
+  <div class="hidden flex-1 sm:block"></div>
+  <nav class="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[12px] text-muted sm:gap-x-5" aria-label="Footer">
+    {links.map((link) => (
+      <a href={link.href} class="inline-flex min-h-11 items-center px-1 hover:text-fg">{link.label}</a>
+    ))}
+  </nav>
+  <div class="hidden flex-1 sm:block"></div>
+  <span class="font-mono text-[12px] text-muted">stays on this device</span>
+</footer>

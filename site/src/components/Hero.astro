@@ -1,0 +1,35 @@
+---
+import { INSTALL_URL } from '../consts';
+
+const modes = [
+  ['⌘', '⇧', '1', 'visible'],
+  ['⌘', '⇧', '2', 'region'],
+  ['⌘', '⇧', '3', 'full page'],
+  ['⌘', '⇧', '5', 'record'],
+];
+---
+
+<section class="flex flex-col items-center px-5 pt-16 text-center sm:px-8 sm:pt-20 lg:px-16 lg:pt-[88px]">
+  <p class="max-w-full font-mono text-[11px] tracking-[0.07em] text-muted sm:text-[13px] sm:tracking-[0.08em]">SCREENSHOTS&nbsp;&nbsp;·&nbsp;&nbsp;SCREEN RECORDINGS</p>
+  <h1 class="mt-5 max-w-4xl text-balance text-[clamp(2.5rem,7.5vw,4.75rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-fg sm:mt-6 sm:tracking-[-0.025em]">
+    capture browser bugs<br class="hidden sm:block" /> and walkthroughs
+  </h1>
+  <p class="mt-5 max-w-[640px] text-[16px] leading-7 text-muted sm:mt-6 sm:text-[20px] sm:leading-[30px]">
+    screenshot a page or record a tab or screen. annotate what matters, then find it in your searchable, on-device library.
+  </p>
+  <div class="mt-7 flex w-full max-w-[28rem] flex-col gap-3 sm:mt-9 sm:max-w-none sm:flex-row sm:justify-center">
+    <a href={INSTALL_URL} class="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-fg px-7 text-[16px] font-semibold text-bg sm:w-auto">add to chrome — free</a>
+    <a href="#features" class="inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rule-strong px-7 text-[16px] font-medium text-fg sm:w-auto">see capture features</a>
+  </div>
+  <ul class="mt-5 flex max-w-xl flex-wrap justify-center gap-x-4 gap-y-3 font-mono text-[11px] text-muted sm:gap-x-6 sm:text-[12px]" aria-label="Keyboard shortcuts">
+    {modes.map(([mod, shift, key, label]) => (
+      <li class="flex items-center gap-2">
+        <kbd class="rounded border border-rule-strong px-1.5 py-0.5">{mod}{shift}{key}</kbd>
+        <span>{label}</span>
+      </li>
+    ))}
+  </ul>
+  <figure class="mt-10 w-full max-w-[960px] overflow-hidden rounded-xl border border-rule bg-surface sm:mt-14">
+    <img src="/hero-region.gif" alt="Region select expanding over a page, then copy, save, annotate" width="960" height="600" class="block h-auto w-full" loading="eager" />
+  </figure>
+</section>

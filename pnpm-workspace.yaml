@@ -1,0 +1,7 @@
+packages:
+  - '.'
+  - site
+
+# esbuild's postinstall downloads its platform binary; required by Vite/Astro.
+allowBuilds:
+  esbuild: true

@@ -1,0 +1,15 @@
+---
+const points = ['local capture and editing', 'microphone only when enabled', 'no automatic uploads or analytics'];
+---
+
+<section id="privacy" class="scroll-mt-24 mx-5 mt-16 flex flex-col items-start gap-6 rounded-xl border border-rule bg-surface px-5 py-6 sm:mx-8 sm:mt-20 sm:px-8 sm:py-10 lg:mx-16 lg:mt-24 lg:flex-row lg:items-center lg:gap-12 lg:px-14 lg:py-12">
+  <div class="flex min-w-0 flex-1 flex-col gap-3">
+    <h2 class="text-[clamp(1.5rem,5vw,1.875rem)] font-semibold leading-tight text-fg">your captures stay on this device</h2>
+    <p class="text-[16px] leading-[24px] text-muted">Screenshots, recordings, annotations, and tab title/URL are stored locally. Kapture never uploads them; you choose when to copy or download a capture.</p>
+  </div>
+  <ul class="flex w-full flex-col gap-3 font-mono text-[13px] text-muted sm:w-auto lg:shrink-0">
+    {points.map((p) => (
+      <li class="flex items-center gap-3"><span aria-hidden="true">✓</span><span>{p}</span></li>
+    ))}
+  </ul>
+</section>

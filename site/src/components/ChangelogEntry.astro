@@ -1,0 +1,25 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+
+interface Props {
+  entry: CollectionEntry<'changelog'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<article>
+  <p class="font-mono text-[12px] text-muted">
+    {entry.data.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+  </p>
+  <h2 class="mt-1 text-2xl font-semibold text-fg">{entry.data.title}</h2>
+  <div class="prose-kapture mt-3 flex flex-col gap-2 text-[15px] leading-6 text-muted">
+    <Content />
+  </div>
+</article>
+
+<style>
+  .prose-kapture :global(ul) { display: flex; flex-direction: column; gap: 0.5rem; list-style: disc; padding-left: 1.25rem; }
+  .prose-kapture :global(strong) { color: var(--k-fg); font-weight: 600; }
+</style>

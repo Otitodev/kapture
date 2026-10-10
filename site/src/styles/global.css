@@ -1,0 +1,14 @@
+/* Single source of truth lives in the extension package: token values,
+   fonts and base styles are shared so the site can never drift. */
+@import "../../../assets/tailwind.css";
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+::selection {
+  background: var(--k-fg);
+  color: var(--k-bg);
+}

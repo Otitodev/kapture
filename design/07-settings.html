@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / settings</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .sec { padding: 32px 0; border-top: 1px solid var(--rule); display: flex; gap: 48px; }
+  .sec > .h { width: 180px; flex-shrink: 0; }
+  .sec > .b { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+  .line { display: flex; align-items: center; gap: 16px; min-height: 36px; }
+  .line .txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .sc { display: flex; align-items: center; gap: 16px; height: 40px; border-bottom: 1px solid var(--rule); }
+  .sc:last-child { border-bottom: 0; }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+<div class="cap" style="width:1100px;margin-left:auto;margin-right:auto">07 / settings</div>
+
+<div class="frame" style="width:1100px;padding:56px 64px 72px">
+  <div class="col gap-4" style="margin-bottom:40px">
+    <span class="display">settings</span>
+    <span class="lead">everything is saved on this device.</span>
+  </div>
+
+  <div class="sec">
+    <div class="h ui">general</div>
+    <div class="b">
+      <div class="line"><div class="txt"><span class="ui">theme</span><span class="small muted">follows your system by default</span></div>
+        <div class="row" style="border:1px solid var(--rule-strong);border-radius:4px"><div class="btn sm" style="color:var(--muted)">light</div><div class="btn sm btn-primary">dark</div><div class="btn sm" style="color:var(--muted)">system</div></div></div>
+      <div class="line"><div class="txt"><span class="ui">after capturing</span><span class="small muted">what happens right after a screenshot</span></div>
+        <div class="select"><span>open editor</span><i data-i="chevron" data-s="14"></i></div></div>
+      <div class="line"><div class="txt"><span class="ui">default format</span></div>
+        <div class="select"><span>png</span><i data-i="chevron" data-s="14"></i></div></div>
+      <div class="line"><div class="txt"><span class="ui">file name</span><span class="small muted">{domain} {title} {date} {time}</span></div>
+        <div class="input" style="width:260px"><span class="mono">{domain}-{date}-{time}</span></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="h ui">capture</div>
+    <div class="b">
+      <div class="line"><div class="txt"><span class="ui">hide fixed headers in full page</span><span class="small muted">stops sticky bars from repeating down the image</span></div><div class="switch on"></div></div>
+      <div class="line"><div class="txt"><span class="ui">hide cookie banners</span></div><div class="switch"></div></div>
+      <div class="line"><div class="txt"><span class="ui">capture at 2× resolution</span><span class="small muted">sharper on retina screens, files are about 3× larger</span></div><div class="switch on"></div></div>
+      <div class="line"><div class="txt"><span class="ui">copy to clipboard automatically</span></div><div class="switch"></div></div>
+      <div class="line"><div class="txt"><span class="ui">blur private items automatically</span><span class="small muted">emails, card numbers and keys found on the page</span></div><div class="switch on"></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="h ui">recording</div>
+    <div class="b">
+      <div class="line"><div class="txt"><span class="ui">quality</span></div><div class="select"><span>720p · 30 fps</span><i data-i="chevron" data-s="14"></i></div></div>
+      <div class="line"><div class="txt"><span class="ui">countdown</span></div><div class="select"><span>3 seconds</span><i data-i="chevron" data-s="14"></i></div></div>
+      <div class="line"><div class="txt"><span class="ui">microphone</span></div><div class="select"><span>macbook microphone</span><i data-i="chevron" data-s="14"></i></div></div>
+      <div class="line"><div class="txt"><span class="ui">highlight clicks and keystrokes</span></div><div class="switch on"></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="h ui">shortcuts</div>
+    <div class="b" style="gap:0">
+      <div class="sc"><span class="grow ui">visible area</span><span class="kbd">⌘ ⇧ 1</span><span class="small muted">change</span></div>
+      <div class="sc"><span class="grow ui">selected region</span><span class="kbd">⌘ ⇧ 2</span><span class="small muted">change</span></div>
+      <div class="sc"><span class="grow ui">full page</span><span class="kbd">⌘ ⇧ 3</span><span class="small muted">change</span></div>
+      <div class="sc"><span class="grow ui">single element</span><span class="kbd">⌘ ⇧ 4</span><span class="small muted">change</span></div>
+      <div class="sc"><span class="grow ui">record this tab</span><span class="kbd">⌘ ⇧ 5</span><span class="small muted">change</span></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="h ui">privacy</div>
+    <div class="b">
+      <div class="row gap-3" style="align-items:flex-start;padding:16px;border:1px solid var(--rule);border-radius:6px">
+        <i data-i="shield" data-s="18" style="margin-top:1px"></i>
+        <span class="small" style="color:var(--fg)">captures, recordings and history are stored in this browser. nothing is uploaded, and kapture has no account.</span>
+      </div>
+      <div class="line"><div class="txt"><span class="ui">anonymous usage counts</span><span class="small muted">which features are used, never what you capture. off by default.</span></div><div class="switch"></div></div>
+      <div class="line"><div class="txt"><span class="ui">clear history</span><span class="small muted">184 mb · 148 items</span></div><div class="btn sm btn-danger">delete everything</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="h"><span class="ui">ai</span><div class="small muted" style="margin-top:4px">optional</div></div>
+    <div class="b">
+      <div class="line"><div class="txt"><span class="ui">write bug reports from a capture</span><span class="small muted">sends the screenshot and console log to the model you choose. off until you add a key.</span></div><div class="switch"></div></div>
+      <div class="line"><div class="txt"><span class="ui">api key</span><span class="small muted">stored only in this browser</span></div><div class="input placeholder" style="width:260px"><span class="mono">paste a key</span></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

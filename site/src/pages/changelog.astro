@@ -1,0 +1,22 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import ChangelogEntry from '../components/ChangelogEntry.astro';
+
+const entries = (await getCollection('changelog')).sort((a, b) => +b.data.date - +a.data.date);
+---
+
+<Base title="Changelog — Kapture" description="What shipped in each Kapture build.">
+  <Nav />
+  <main id="main-content" class="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
+    <h1 class="text-[clamp(2.25rem,8vw,3rem)] font-light leading-[1.05] tracking-[-0.02em] text-fg">changelog</h1>
+    <div class="mt-10 flex flex-col gap-10">
+      {entries.map((e) => (
+        <ChangelogEntry entry={e} />
+      ))}
+    </div>
+  </main>
+  <Footer />
+</Base>

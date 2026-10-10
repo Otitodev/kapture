@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / recording review</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .video { position: relative; width: 800px; height: 500px; overflow: hidden; box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.5); flex-shrink: 0; }
+  .video .inner { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; transform: scale(.625); transform-origin: 0 0; }
+  .track { position: relative; height: 56px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .wave { position: absolute; inset: 14px 0; display: flex; align-items: center; gap: 3px; padding: 0 8px; }
+  .wave i { display: block; width: 3px; background: var(--rule-strong); border-radius: 2px; }
+  .trim-in { position: absolute; left: 0; top: 0; bottom: 0; width: 7%; background: rgba(0,0,0,.55); }
+  .trim-out { position: absolute; right: 0; top: 0; bottom: 0; width: 12%; background: rgba(0,0,0,.55); }
+  .hnd { position: absolute; top: 0; bottom: 0; width: 8px; background: var(--fg); }
+  .head { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--record); }
+  .opt { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 6px; }
+  .opt.sel { border-color: var(--fg); }
+  .radio { width: 14px; height: 14px; border-radius: 99px; border: 1px solid var(--rule-strong); flex-shrink: 0; }
+  .opt.sel .radio { border: 4px solid var(--fg); }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+<div class="cap" style="width:1440px;margin-left:auto;margin-right:auto">05 / recording review · trim and export</div>
+
+<div class="frame col" style="width:1440px;height:900px">
+  <div class="row rule-b" style="height:52px;padding:0 16px;gap:16px;flex-shrink:0">
+    <span style="font-size:18px;letter-spacing:.01em">kapture</span>
+    <span style="width:1px;height:20px;background:var(--rule)"></span>
+    <span class="mono muted">acme.com-pricing · 01:24 · 1280 × 800</span>
+    <div class="grow"></div>
+    <div class="btn sm btn-text">discard</div>
+    <div class="btn sm btn-primary">save to history</div>
+  </div>
+
+  <div class="row grow" style="align-items:stretch;min-height:0">
+    <div class="col grow" style="padding:32px 40px;gap:24px;align-items:center;background:var(--canvas);min-width:0">
+      <div class="video">
+        <div class="inner">
+          <div class="page-mock">
+            <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+            <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+            <div class="pm-cards">
+              <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+              <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+              <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row gap-4" style="width:800px">
+        <div class="tool sm active"><i data-i="play"></i></div>
+        <span class="mono">00:31 / 01:24</span>
+        <div class="grow"></div>
+        <span class="mono muted">1×</span>
+      </div>
+
+      <div class="col gap-3" style="width:800px">
+        <div class="row" style="justify-content:space-between"><span class="label">trim</span><span class="mono muted">kept 01:09 of 01:24</span></div>
+        <div class="track">
+          <div class="wave">
+            <script>for(var i=0;i<130;i++){var h=6+Math.abs(Math.sin(i*.37)*18)+(i%7)*1.2;document.currentScript.parentNode.insertAdjacentHTML('beforeend','<i style="height:'+h+'px"></i>');}</script>
+          </div>
+          <div class="trim-in"></div><div class="trim-out"></div>
+          <div class="hnd" style="left:7%"></div><div class="hnd" style="right:12%"></div>
+          <div class="head" style="left:37%"></div>
+        </div>
+        <div class="row gap-2"><div class="btn sm btn-secondary">split at playhead</div><div class="btn sm btn-secondary">remove silence</div></div>
+      </div>
+    </div>
+
+    <div class="col rule-l" style="width:340px;flex-shrink:0;padding:24px;gap:24px">
+      <div class="col gap-3">
+        <span class="label">format</span>
+        <div class="opt sel"><span class="radio"></span><span class="ui grow">mp4</span><span class="mono muted">works everywhere</span></div>
+        <div class="opt"><span class="radio"></span><span class="ui grow">webm</span><span class="mono muted">smallest</span></div>
+        <div class="opt"><span class="radio"></span><span class="ui grow">gif</span><span class="mono muted">no audio</span></div>
+      </div>
+      <div class="col gap-3">
+        <span class="label">quality</span>
+        <div class="select"><span>720p · 30 fps</span><i data-i="chevron" data-s="14"></i></div>
+      </div>
+      <div class="col gap-3">
+        <span class="label">captions</span>
+        <div class="row gap-3"><div class="switch"></div><span class="small muted">generate on this device</span></div>
+      </div>
+      <div class="grow"></div>
+      <div class="col gap-3 rule-t" style="padding-top:20px">
+        <div class="row" style="justify-content:space-between"><span class="small muted">estimated size</span><span class="mono">18.4 mb</span></div>
+        <div class="btn btn-primary" style="width:100%">export mp4</div>
+        <div class="btn btn-secondary" style="width:100%">copy to clipboard</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

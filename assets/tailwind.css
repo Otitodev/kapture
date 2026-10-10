@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/geist-mono";
+
+/* Kapture tokens. Mirrors design/kapture.css and the Paper file. Dark first. */
+:root {
+  --k-bg: #181818;
+  --k-surface: #1f1f1f;
+  --k-raised: #2a2a2a;
+  --k-rule: #333333;
+  --k-rule-strong: #4a4a4a;
+  --k-muted: #909090;
+  --k-fg: #efefe4;
+  --k-record: #ff5a4f;
+  --k-on-record: #181818;
+  --k-canvas: #121212;
+  color-scheme: dark;
+}
+
+/* Light theme: explicit choice, or system preference when the user hasn't chosen dark. */
+:root[data-theme="light"] {
+  --k-bg: #f7f7f2;
+  --k-surface: #ffffff;
+  --k-raised: #ecece5;
+  --k-rule: #e2e2da;
+  --k-rule-strong: #c9c9c0;
+  --k-muted: #6b6b66;
+  --k-fg: #181818;
+  --k-record: #d93a2f;
+  --k-on-record: #ffffff;
+  --k-canvas: #e9e9e2;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --k-bg: #f7f7f2;
+    --k-surface: #ffffff;
+    --k-raised: #ecece5;
+    --k-rule: #e2e2da;
+    --k-rule-strong: #c9c9c0;
+    --k-muted: #6b6b66;
+    --k-fg: #181818;
+    --k-record: #d93a2f;
+    --k-on-record: #ffffff;
+    --k-canvas: #e9e9e2;
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--k-bg);
+  --color-surface: var(--k-surface);
+  --color-raised: var(--k-raised);
+  --color-rule: var(--k-rule);
+  --color-rule-strong: var(--k-rule-strong);
+  --color-muted: var(--k-muted);
+  --color-fg: var(--k-fg);
+  --color-record: var(--k-record);
+  --color-on-record: var(--k-on-record);
+  --color-canvas: var(--k-canvas);
+
+  --font-sans: "Figtree Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+html,
+body {
+  background: var(--k-bg);
+  color: var(--k-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--k-fg);
+  outline-offset: 2px;
+}

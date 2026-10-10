@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / editor</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .stage { position: relative; width: 920px; height: 575px; overflow: hidden; box-shadow: 0 0 0 1px #000, 0 20px 60px rgba(0,0,0,.5); flex-shrink: 0; }
+  .stage .inner { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; transform: scale(.71875); transform-origin: 0 0; }
+  .ann { position: absolute; }
+  .red { color: #ff5a4f; }
+  .sh { position: absolute; width: 8px; height: 8px; background: #fff; border: 1px solid #3b82f6; }
+  .sec { padding: 16px; border-bottom: 1px solid var(--rule); }
+  .sec h4 { font: 400 12px/16px var(--font-mono); color: var(--muted); margin-bottom: 12px; font-weight: 400; }
+  .layer { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: 4px; font-size: 13px; }
+  .layer.sel { background: var(--raised); }
+  .layer .mono { margin-left: auto; color: var(--muted); }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+<div class="cap" style="width:1440px;margin-left:auto;margin-right:auto">03 / editor · box selected, email auto-blurred</div>
+
+<div class="frame col" style="width:1440px;height:900px">
+  <!-- top bar -->
+  <div class="row rule-b" style="height:52px;padding:0 16px;gap:16px;flex-shrink:0">
+    <span style="font-size:18px;letter-spacing:.01em">kapture</span>
+    <span style="width:1px;height:20px;background:var(--rule)"></span>
+    <span class="mono muted">acme.com-pricing</span>
+    <span class="mono muted">· 1280 × 800</span>
+    <div class="grow"></div>
+    <div class="row gap-2">
+      <div class="tool sm"><i data-i="undo"></i></div><div class="tool sm" style="opacity:.4"><i data-i="redo"></i></div>
+    </div>
+    <div class="grow"></div>
+    <div class="row gap-2">
+      <div class="btn sm btn-secondary"><i data-i="copy" data-s="14"></i>copy</div>
+      <div class="btn sm btn-secondary"><i data-i="download" data-s="14"></i>download</div>
+      <div class="btn sm btn-primary">save to history</div>
+    </div>
+  </div>
+
+  <div class="row grow" style="align-items:stretch;min-height:0">
+    <!-- tool rail -->
+    <div class="col rule-r" style="width:56px;padding:12px 10px;gap:4px;align-items:center;flex-shrink:0">
+      <div class="tool"><i data-i="select"></i></div>
+      <div class="tool"><i data-i="arrow"></i></div>
+      <div class="tool active"><i data-i="box"></i></div>
+      <div class="tool"><i data-i="pen"></i></div>
+      <div class="tool"><i data-i="text"></i></div>
+      <div class="tool"><i data-i="blur"></i></div>
+      <div class="tool"><i data-i="steps"></i></div>
+      <div style="width:24px;height:1px;background:var(--rule);margin:8px 0"></div>
+      <div class="tool"><i data-i="crop"></i></div>
+    </div>
+
+    <!-- canvas -->
+    <div class="grow row" style="justify-content:center;background:var(--canvas);position:relative">
+      <div class="stage">
+        <div class="inner">
+          <div class="page-mock">
+            <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sam@acme.com</span></div></div>
+            <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+            <div class="pm-cards">
+              <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+              <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+              <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+            </div>
+          </div>
+
+          <!-- blur over email -->
+          <div class="ann" style="left:1100px;top:18px;width:140px;height:32px;background:#9a9a9a;filter:blur(0);border-radius:3px;opacity:.9;background-image:repeating-linear-gradient(45deg,#8e8e8e 0 6px,#a8a8a8 6px 12px)"></div>
+
+          <!-- red box around price -->
+          <div class="ann" style="left:468px;top:364px;width:124px;height:62px;border:4px solid #ff5a4f;border-radius:6px"></div>
+          <!-- selection handles on box -->
+          <div class="ann" style="left:460px;top:356px;width:140px;height:78px;border:1px solid #3b82f6"></div>
+          <div class="sh" style="left:456px;top:352px"></div><div class="sh" style="left:596px;top:352px"></div>
+          <div class="sh" style="left:456px;top:430px"></div><div class="sh" style="left:596px;top:430px"></div>
+
+          <!-- arrow + note -->
+          <svg class="ann" style="left:0;top:0" width="1280" height="800" viewBox="0 0 1280 800">
+            <path d="M760 268 C 700 300, 650 340, 604 372" stroke="#ff5a4f" stroke-width="5" fill="none" stroke-linecap="round"/>
+            <path d="M604 372 L 630 366 M604 372 L 612 346" stroke="#ff5a4f" stroke-width="5" fill="none" stroke-linecap="round"/>
+          </svg>
+          <div class="ann red" style="left:700px;top:224px;font:500 26px/30px Figtree">wrong price? should be $10</div>
+
+          <!-- step badge -->
+          <div class="ann" style="left:424px;top:346px;width:36px;height:36px;border-radius:99px;background:#ff5a4f;color:#181818;font:600 20px/36px Figtree;text-align:center">1</div>
+        </div>
+      </div>
+      <!-- floating zoom -->
+      <div class="panel row" style="position:absolute;left:16px;bottom:16px;gap:2px;padding:3px">
+        <div class="tool sm"><i data-i="plus" data-s="14" style="transform:rotate(45deg)"></i></div>
+        <span class="mono" style="padding:0 6px">72%</span>
+        <div class="tool sm"><i data-i="plus" data-s="14"></i></div>
+      </div>
+    </div>
+
+    <!-- properties -->
+    <div class="col rule-l" style="width:288px;flex-shrink:0;overflow:hidden">
+      <div class="sec">
+        <div class="row" style="justify-content:space-between"><span class="ui">box</span><span class="mono muted">⌫ delete</span></div>
+      </div>
+      <div class="sec">
+        <h4>color</h4>
+        <div class="row" style="gap:8px">
+          <div class="swatch sel" style="background:#ff5a4f"></div><div class="swatch" style="background:#ff9a3d"></div><div class="swatch" style="background:#ffd60a"></div>
+          <div class="swatch" style="background:#34c76a"></div><div class="swatch" style="background:#3b82f6"></div><div class="swatch" style="background:#9b5cff"></div>
+          <div class="swatch" style="background:#ff5fae"></div><div class="swatch" style="background:#111;border:1px solid var(--rule-strong)"></div><div class="swatch" style="background:#fff"></div>
+        </div>
+      </div>
+      <div class="sec">
+        <h4>stroke</h4>
+        <div class="row gap-3"><div class="slider"><i style="width:30%"></i><b style="left:30%"></b></div><span class="mono" style="width:36px;text-align:right">4 px</span></div>
+        <div class="row gap-2" style="margin-top:14px"><div class="chip active">outline</div><div class="chip">filled</div><div class="chip">rounded</div></div>
+      </div>
+      <div class="sec">
+        <h4>opacity</h4>
+        <div class="row gap-3"><div class="slider"><i style="width:100%"></i><b style="left:calc(100% - 12px)"></b></div><span class="mono" style="width:36px;text-align:right">100%</span></div>
+      </div>
+      <div class="sec" style="flex:1">
+        <h4>layers</h4>
+        <div class="col" style="gap:2px">
+          <div class="layer"><i data-i="blur" data-s="15"></i>blur · email<span class="mono">auto</span></div>
+          <div class="layer"><i data-i="text" data-s="15"></i>wrong price? should be…</div>
+          <div class="layer"><i data-i="arrow" data-s="15"></i>arrow</div>
+          <div class="layer sel"><i data-i="box" data-s="15"></i>box</div>
+          <div class="layer"><i data-i="steps" data-s="15"></i>step 1</div>
+        </div>
+      </div>
+      <div class="sec" style="border-bottom:0;border-top:1px solid var(--rule)">
+        <div class="row gap-3" style="align-items:flex-start">
+          <i data-i="shield" data-s="16" style="margin-top:2px"></i>
+          <div class="col gap-2 grow">
+            <span class="ui small">1 private item blurred</span>
+            <span class="small muted">an email address in the nav. found on this device, nothing was sent.</span>
+            <div class="row gap-4" style="margin-top:2px"><span class="small" style="text-decoration:underline;text-underline-offset:3px">review</span><span class="small muted">undo</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- status -->
+  <div class="row rule-t mono muted" style="height:32px;padding:0 16px;justify-content:space-between;flex-shrink:0">
+    <span>stays on this device</span><span>png · 1280 × 800 · 214 kb</span>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

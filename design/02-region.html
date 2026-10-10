@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / region select</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .handle { position: absolute; width: 8px; height: 8px; background: var(--fg); }
+  .sel { position: absolute; border: 1px solid var(--fg); }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+
+<div class="cap" style="width:1280px">02 / region select · dragging</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+
+  <div class="dim" style="left:0;top:0;width:1280px;height:296px"></div>
+  <div class="dim" style="left:0;top:588px;width:1280px;height:212px"></div>
+  <div class="dim" style="left:0;top:296px;width:430px;height:292px"></div>
+  <div class="dim" style="left:850px;top:296px;width:430px;height:292px"></div>
+
+  <div class="sel" style="left:430px;top:296px;width:420px;height:292px"></div>
+  <div class="handle" style="left:426px;top:292px"></div><div class="handle" style="left:846px;top:292px"></div>
+  <div class="handle" style="left:426px;top:584px"></div><div class="handle" style="left:846px;top:584px"></div>
+  <div class="handle" style="left:636px;top:292px"></div><div class="handle" style="left:636px;top:584px"></div>
+  <div class="handle" style="left:426px;top:438px"></div><div class="handle" style="left:846px;top:438px"></div>
+
+  <div class="pill" style="position:absolute;left:430px;top:264px;height:24px">420 × 292</div>
+
+  <div class="panel row" style="position:absolute;left:622px;top:606px;gap:4px;padding:4px">
+    <div class="btn sm" style="color:var(--fg)">copy</div>
+    <div class="btn sm" style="color:var(--fg)">save</div>
+    <div class="btn sm btn-primary">annotate</div>
+  </div>
+
+  <div class="row" style="position:absolute;left:470px;top:24px;width:340px;height:36px;justify-content:center;gap:10px;background:var(--bg);border-radius:6px">
+    <span class="small">drag to select</span><span class="small muted">·</span><span class="mono muted">esc</span><span class="small muted">to cancel</span>
+  </div>
+</div>
+
+<div class="cap" style="width:1280px">02b / region select · before dragging (crosshair, live size)</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+  <div class="dim" style="inset:0"></div>
+  <div style="position:absolute;left:0;top:340px;width:1280px;height:1px;background:rgba(239,239,228,.5)"></div>
+  <div style="position:absolute;left:660px;top:0;width:1px;height:800px;background:rgba(239,239,228,.5)"></div>
+  <div class="pill" style="position:absolute;left:672px;top:352px">660, 340</div>
+  <div class="row" style="position:absolute;left:470px;top:24px;width:340px;height:36px;justify-content:center;gap:10px;background:var(--bg);border-radius:6px">
+    <span class="small">drag to select</span><span class="small muted">·</span><span class="mono muted">esc</span><span class="small muted">to cancel</span>
+  </div>
+</div>
+
+<div class="cap" style="width:1280px">02c / element mode · hover highlights a page element</div>
+<div class="frame" style="width:1280px;height:800px;border-color:#2a2a2a">
+  <div class="page-mock">
+    <div class="pm-nav"><b>acme</b><div><span>product</span><span>pricing</span><span>docs</span><span>sign in</span></div></div>
+    <div class="pm-hero"><h1>pricing that scales<br>with your team</h1><p>start free. upgrade when you need more seats, history or support.</p></div>
+    <div class="pm-cards">
+      <div class="pm-card"><b>starter</b><em>$0</em><p>3 projects<br>community support<br>7 day history</p></div>
+      <div class="pm-card"><b>team</b><em>$12</em><p>unlimited projects<br>priority support<br>90 day history</p></div>
+      <div class="pm-card"><b>business</b><em>$29</em><p>sso and audit logs<br>dedicated manager<br>unlimited history</p></div>
+    </div>
+  </div>
+  <div class="dim" style="left:0;top:0;width:1280px;height:312px"></div>
+  <div class="dim" style="left:0;top:572px;width:1280px;height:228px"></div>
+  <div class="dim" style="left:0;top:312px;width:454px;height:260px"></div>
+  <div class="dim" style="left:820px;top:312px;width:460px;height:260px"></div>
+  <div class="sel" style="left:454px;top:312px;width:366px;height:260px;border-width:2px"></div>
+  <div class="pill" style="position:absolute;left:454px;top:284px;height:24px">div.pricing-card · 366 × 260</div>
+  <div class="row" style="position:absolute;left:470px;top:24px;width:340px;height:36px;justify-content:center;gap:10px;background:var(--bg);border-radius:6px">
+    <span class="small">click an element</span><span class="small muted">·</span><span class="mono muted">↑ ↓</span><span class="small muted">parent / child</span>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / welcome</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .pt { display: flex; gap: 20px; padding: 20px 0; border-top: 1px solid var(--rule); }
+  .pt .n { width: 28px; flex-shrink: 0; }
+  .pin { position: absolute; right: 120px; top: 0; width: 280px; }
+  .pin::before { content: ''; position: absolute; right: 36px; top: -6px; width: 12px; height: 12px; background: var(--surface); border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); transform: rotate(45deg); }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+<div class="cap" style="width:1280px;margin-left:auto;margin-right:auto">09 / welcome · opens once after install</div>
+
+<div class="frame" style="width:1280px;height:800px">
+  <div class="row rule-b" style="height:64px;padding:0 48px;justify-content:space-between">
+    <span style="font-size:18px;letter-spacing:.01em">kapture</span>
+    <span class="small muted">v0.1</span>
+  </div>
+
+  <!-- pin hint -->
+  <div style="position:absolute;right:0;top:64px;width:420px;height:1px"></div>
+  <div class="panel col gap-2" style="position:absolute;right:120px;top:76px;width:300px;padding:14px 16px;background:var(--surface)">
+    <div class="row gap-3"><i data-i="pin" data-s="16"></i><span class="ui small">pin kapture to your toolbar</span></div>
+    <span class="small muted">click the puzzle icon, then the pin next to kapture. one click to capture from anywhere.</span>
+  </div>
+
+  <div class="row" style="padding:96px 64px 0;gap:80px;align-items:flex-start">
+    <div class="col" style="width:560px;gap:28px">
+      <span class="display" style="font-size:64px;line-height:64px">capture the bug,<br>not just the pixels</span>
+      <span class="lead" style="max-width:480px">screenshots, annotations and screen recordings. free, no account, and everything stays on your device.</span>
+      <div class="row gap-3" style="margin-top:8px">
+        <div class="btn btn-primary">try your first capture</div>
+        <div class="btn btn-text">skip</div>
+      </div>
+    </div>
+
+    <div class="col grow" style="padding-top:8px">
+      <span class="label" style="margin-bottom:12px">good to know</span>
+      <div class="pt"><span class="mono muted n">01</span><div class="col gap-2 grow"><span class="ui">press a shortcut on any page</span><div class="row gap-3"><span class="kbd">⌘ ⇧ 2</span><span class="small muted">select a region</span><span class="kbd">⌘ ⇧ 3</span><span class="small muted">full page</span></div></div></div>
+      <div class="pt"><span class="mono muted n">02</span><div class="col gap-2 grow"><span class="ui">annotate before you share</span><span class="small muted">arrows, boxes, numbered steps, and blur for anything private. we'll offer to blur emails and keys for you.</span></div></div>
+      <div class="pt"><span class="mono muted n">03</span><div class="col gap-2 grow"><span class="ui">record the tab, with your voice</span><span class="small muted">press <span class="kbd" style="vertical-align:1px">⌘ ⇧ 5</span>. clicks are highlighted, and you can trim afterwards.</span></div></div>
+      <div class="pt" style="border-bottom:1px solid var(--rule)"><span class="mono muted n"><i data-i="shield" data-s="16"></i></span><div class="col gap-2 grow"><span class="ui">private by default</span><span class="small muted">no account, no uploads. your history lives in this browser.</span></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

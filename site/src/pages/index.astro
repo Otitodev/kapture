@@ -1,0 +1,23 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Hero from '../components/Hero.astro';
+import Bento from '../components/Bento.astro';
+import Privacy from '../components/Privacy.astro';
+import CTA from '../components/CTA.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Base
+  title="Kapture — free, local-first screenshots and screen recording"
+  description="Capture, annotate, and record your screen. No account or cloud upload; captures stay on your device until you choose to export."
+>
+  <Nav />
+  <main id="main-content">
+    <Hero />
+    <Bento />
+    <Privacy />
+    <CTA />
+  </main>
+  <Footer />
+</Base>

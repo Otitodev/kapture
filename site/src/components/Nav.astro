@@ -1,0 +1,73 @@
+---
+import { INSTALL_URL } from '../consts';
+
+const links = [
+  { label: 'features', href: '/#features' },
+  { label: 'privacy', href: '/docs/privacy/' },
+  { label: 'changelog', href: '/changelog/' },
+  { label: 'github', href: 'https://github.com/Otitodev/kapture' },
+];
+---
+
+<header class="site-nav sticky top-0 z-50">
+  <div class="site-nav-surface border-b border-transparent">
+    <div class="mx-auto flex min-h-16 max-w-[1440px] items-center gap-4 px-5 py-2 sm:px-8 lg:gap-9 lg:px-16 lg:py-[22px]">
+      <a href="/" class="flex shrink-0 items-center gap-2.5" aria-label="Kapture home">
+        <svg width="30" height="30" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" class="size-7 text-fg sm:size-[30px]" aria-hidden="true"><circle cx="32" cy="32" r="20" stroke-width="5" /><g stroke-width="4.5"><path d="M32 12l7.8 15.5" /><path d="M49.3 22l-9.5 14.5" /><path d="M49.3 42 32 41" /><path d="M32 52l-7.8-15.5" /><path d="M14.7 42l9.5-14.5" /><path d="M14.7 22 32 23" /></g></svg>
+        <span class="text-[18px] font-semibold tracking-[0.01em] text-fg sm:text-[20px]">kapture</span>
+      </a>
+      <div class="flex-1"></div>
+      <nav class="hidden items-center gap-5 md:flex lg:gap-8" aria-label="Primary">
+        {links.map((l) => (
+          <a href={l.href} class="inline-flex min-h-11 items-center text-[15px] font-medium text-muted hover:text-fg">{l.label}</a>
+        ))}
+      </nav>
+      <a href={INSTALL_URL} class="hidden min-h-11 shrink-0 items-center rounded-md bg-fg px-5 text-[15px] font-semibold text-bg md:inline-flex">add to chrome — free</a>
+      <details class="mobile-nav relative md:hidden">
+        <summary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-rule px-3 text-[14px] font-medium text-fg hover:bg-raised">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          <span>menu</span>
+        </summary>
+        <nav class="mobile-menu-panel absolute right-0 top-full z-50 mt-2 flex flex-col gap-1 rounded-lg border border-rule bg-surface p-2 shadow-xl" aria-label="Mobile primary">
+          {links.map((l) => (
+            <a href={l.href} class="flex min-h-11 items-center rounded-md px-3 text-[15px] font-medium text-fg hover:bg-raised">{l.label}</a>
+          ))}
+          <a href={INSTALL_URL} class="mt-1 flex min-h-11 items-center justify-center rounded-md bg-fg px-4 text-[15px] font-semibold text-bg">add to chrome — free</a>
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-nav {
+    container-name: site-nav;
+    container-type: scroll-state;
+  }
+
+  .site-nav-surface {
+    transition: background-color 180ms ease, border-color 180ms ease, backdrop-filter 180ms ease;
+  }
+
+  .mobile-menu-panel {
+    width: min(20rem, calc(100vw - 2.5rem));
+  }
+
+  .mobile-nav summary::-webkit-details-marker {
+    display: none;
+  }
+
+  @container site-nav scroll-state(stuck: top) {
+    .site-nav-surface {
+      background-color: color-mix(in srgb, var(--k-bg) 82%, transparent);
+      border-bottom-color: color-mix(in srgb, var(--k-rule) 80%, transparent);
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-nav-surface {
+      transition: none;
+    }
+  }
+</style>

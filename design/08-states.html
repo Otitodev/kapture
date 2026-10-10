@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kapture / states</title>
+<link rel="stylesheet" href="kapture.css">
+<style>
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 48px 56px; }
+  .cell { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .progress { height: 2px; width: 100%; background: var(--rule-strong); }
+  .progress i { display: block; height: 2px; background: var(--fg); }
+  .dialog { width: 400px; padding: 24px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .tip { padding: 6px 10px; background: var(--fg); color: var(--bg); border-radius: 4px; font: 500 12px/16px var(--font-sans); display: inline-flex; gap: 8px; align-items: center; }
+  .tip .kbd { border-color: rgba(0,0,0,.3); color: var(--bg); height: 18px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<a class="nav-back" href="index.html">&larr; all screens</a>
+<div class="cap" style="width:1100px;margin-left:auto;margin-right:auto">08 / states</div>
+
+<div class="frame" style="width:1100px;padding:56px 64px 72px">
+  <div class="col gap-4" style="margin-bottom:48px"><span class="display">states</span><span class="lead">the small moments around a capture.</span></div>
+
+  <div class="grid2">
+    <div class="cell">
+      <span class="label">toast · copied</span>
+      <div class="toast"><i data-i="check" data-s="16"></i>copied to clipboard</div>
+    </div>
+    <div class="cell">
+      <span class="label">toast · saved, with action</span>
+      <div class="toast"><i data-i="check" data-s="16"></i>saved to history<span class="muted">·</span><span style="text-decoration:underline;text-underline-offset:3px">open</span></div>
+    </div>
+
+    <div class="cell">
+      <span class="label">full page · capturing</span>
+      <div class="panel col gap-3" style="padding:16px;width:340px">
+        <div class="row" style="justify-content:space-between"><span class="ui small">capturing full page</span><span class="mono muted">62%</span></div>
+        <div class="progress"><i style="width:62%"></i></div>
+        <div class="row" style="justify-content:space-between"><span class="small muted">scrolling, please don't touch the page</span><span class="small" style="text-decoration:underline;text-underline-offset:3px">cancel</span></div>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">error · can't capture</span>
+      <div class="toast" style="border-color:var(--record);align-items:flex-start;width:340px"><i data-i="warn" data-s="16" style="color:var(--record);margin-top:1px"></i><div class="col" style="gap:2px"><span>couldn't capture this page</span><span class="small muted" style="font-weight:400">chrome blocks capture on its own pages and the web store.</span></div></div>
+    </div>
+
+    <div class="cell">
+      <span class="label">tooltip</span>
+      <span class="tip">blur<span class="kbd">B</span></span>
+    </div>
+    <div class="cell">
+      <span class="label">recording permission · mic</span>
+      <div class="panel col gap-3" style="padding:16px;width:340px">
+        <div class="row gap-3"><i data-i="mic" data-s="18"></i><span class="ui">allow microphone?</span></div>
+        <span class="small muted">to record your voice. audio is saved with the video on this device only. you can record without it.</span>
+        <div class="row gap-2"><div class="btn sm btn-primary">allow</div><div class="btn sm btn-secondary">record without</div></div>
+      </div>
+    </div>
+
+    <div class="cell">
+      <span class="label">redaction suggestion</span>
+      <div class="panel row gap-3" style="padding:12px 14px;width:100%">
+        <i data-i="shield" data-s="16"></i>
+        <div class="col grow" style="gap:2px"><span class="ui small">2 private items found</span><span class="small muted">an email address and a card number</span></div>
+        <div class="btn sm btn-secondary">review</div><div class="btn sm btn-primary">blur both</div>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">storage almost full</span>
+      <div class="panel row gap-3" style="padding:12px 14px;width:100%">
+        <i data-i="warn" data-s="16"></i>
+        <div class="col grow" style="gap:2px"><span class="ui small">history is using 92% of its space</span><span class="small muted">delete old recordings to keep saving</span></div>
+        <div class="btn sm btn-secondary">manage</div>
+      </div>
+    </div>
+
+    <div class="cell">
+      <span class="label">empty library</span>
+      <div class="col" style="align-items:flex-start;gap:12px;padding:32px 0">
+        <span class="heading">nothing here yet</span>
+        <span class="small muted" style="max-width:300px">your captures will show up here. press <span class="kbd" style="vertical-align:1px">⌘ ⇧ 2</span> on any page to start.</span>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="label">empty search</span>
+      <div class="col" style="align-items:flex-start;gap:12px;padding:32px 0">
+        <span class="heading">no matches for "invoice"</span>
+        <span class="small muted" style="max-width:300px">search looks at titles, urls and text inside images.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cell" style="margin-top:56px">
+    <span class="label">dialog · delete</span>
+    <div class="dialog col gap-4">
+      <span class="heading">delete 2 captures?</span>
+      <span class="small muted">they're removed from this device and can't be recovered.</span>
+      <div class="row gap-2" style="justify-content:flex-end;margin-top:8px"><div class="btn sm btn-text">cancel</div><div class="btn sm btn-solid-record">delete</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>
