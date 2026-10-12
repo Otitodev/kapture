@@ -6,6 +6,17 @@ import { libraryUrl } from '@/lib/capture';
 import { buildFilename, DEFAULT_FILENAME_TEMPLATE } from '@/lib/filename';
 import { extensionForMimeType } from '@/lib/recording';
 import {
+  BACKDROPS,
+  DEFAULT_STYLE,
+  PADDING_RANGE,
+  RADIUS_RANGE,
+  frameTitle,
+  getStylePref,
+  renderStyled,
+  setStylePref,
+  type StyleOptions,
+} from '@/lib/style';
+import {
   ANNOTATION_COLORS,
   AnnoHistory,
   deserializeAnnos,
@@ -48,6 +59,11 @@ export function App() {
   const imageUrlRef = useRef<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [styleOpts, setStyleOpts] = useState<StyleOptions>(DEFAULT_STYLE);
+  const previewRef = useRef<HTMLCanvasElement | null>(null);
+  const [previewStyled, setPreviewStyled] = useState(false);
+  const largePreviewRef = useRef<HTMLCanvasElement | null>(null);
+  const showStyledPreview = styleOpts.enabled && previewStyled;
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -86,6 +102,88 @@ export function App() {
       imageUrlRef.current = null;
     };
   }, [id]);
+
+  useEffect(() => {
+    void getStylePref().then(setStyleOpts);
+  }, []);
+
+  function updateStyle(patch: Partial<StyleOptions>) {
+    const next = { ...styleOpts, ...patch };
+    if (patch.enabled === false) setPreviewStyled(false);
+    setStyleOpts(next);
+    void setStylePref(next);
+  }
+
+  // Keep the small live preview in step with the style controls and the annotations.
+  const annotationsNow = historyRef.current.current;
+  useEffect(() => {
+    const canvas = previewRef.current;
+    if (!styleOpts.enabled || !canvas || load.state !== 'ready') return;
+    let stale = false;
+    const timer = window.setTimeout(async () => {
+      const base = (await flatten()) ?? load.record.blob;
+      const bitmap = await createImageBitmap(base);
+      if (stale) return bitmap.close();
+      // Render from a small copy so dragging a slider stays cheap on large captures.
+      const factor = Math.min(1, 480 / bitmap.width);
+      const small = document.createElement('canvas');
+      small.width = Math.max(1, Math.round(bitmap.width * factor));
+      small.height = Math.max(1, Math.round(bitmap.height * factor));
+      small.getContext('2d')!.drawImage(bitmap, 0, 0, small.width, small.height);
+      bitmap.close();
+      const styled = renderStyled(small, small.width, small.height, styleOpts, frameTitle(load.record.url, load.record.title));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      if (!styled) {
+        canvas.width = 1;
+        canvas.height = 1;
+        return;
+      }
+      canvas.width = styled.width;
+      canvas.height = styled.height;
+      ctx.drawImage(styled, 0, 0);
+    }, 120);
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleOpts, load, size, annotationsNow, imageUrl]);
+
+  // Full-size read-only preview that replaces the editing view while "preview styled" is on.
+  useEffect(() => {
+    const canvas = largePreviewRef.current;
+    if (!showStyledPreview || !canvas || load.state !== 'ready') return;
+    let stale = false;
+    const timer = window.setTimeout(async () => {
+      const base = (await flatten()) ?? load.record.blob;
+      const bitmap = await createImageBitmap(base);
+      if (stale) return bitmap.close();
+      // Cap the working size: this is for looking at, and the real export renders at full resolution.
+      const factor = Math.min(1, 1800 / bitmap.width);
+      const source = document.createElement('canvas');
+      source.width = Math.max(1, Math.round(bitmap.width * factor));
+      source.height = Math.max(1, Math.round(bitmap.height * factor));
+      source.getContext('2d')!.drawImage(bitmap, 0, 0, source.width, source.height);
+      bitmap.close();
+      const styled = renderStyled(source, source.width, source.height, styleOpts, frameTitle(load.record.url, load.record.title));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      if (!styled) {
+        setToast('too large to style. the export will be the plain image');
+        setPreviewStyled(false);
+        return;
+      }
+      canvas.width = styled.width;
+      canvas.height = styled.height;
+      ctx.drawImage(styled, 0, 0);
+    }, 120);
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStyledPreview, styleOpts, load, size, annotationsNow, imageUrl]);
 
   useEffect(() => {
     if (!toast) return;
@@ -402,8 +500,22 @@ export function App() {
     setToast('saved to history');
   }
 
+  /** The image to copy or download: annotations flattened, then styled when styling is on. */
+  async function exportBlob(): Promise<Blob | null> {
+    const base = (await flatten()) ?? (load.state === 'ready' ? load.record.blob : null);
+    if (!base || load.state !== 'ready' || !styleOpts.enabled) return base;
+    const bitmap = await createImageBitmap(base);
+    const styled = renderStyled(bitmap, bitmap.width, bitmap.height, styleOpts, frameTitle(load.record.url, load.record.title));
+    bitmap.close();
+    if (!styled) {
+      setToast('too large to style. exported the plain image');
+      return base;
+    }
+    return (await new Promise<Blob | null>((res) => styled.toBlob(res, 'image/png'))) ?? base;
+  }
+
   async function copy() {
-    const blob = await flatten() ?? (load.state === 'ready' ? load.record.blob : null);
+    const blob = await exportBlob();
     if (!blob) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
@@ -414,7 +526,7 @@ export function App() {
   }
 
   async function download() {
-    const blob = await flatten() ?? (load.state === 'ready' ? load.record.blob : null);
+    const blob = await exportBlob();
     if (!blob || load.state !== 'ready') return;
     const ext = blob.type.startsWith('video') ? extensionForMimeType(blob.type) : blob.type.includes('jpeg') ? 'jpg' : blob.type.includes('webp') ? 'webp' : 'png';
     const filename = `${buildFilename(DEFAULT_FILENAME_TEMPLATE, { url: load.record.url, title: captureDisplayName(load.record), date: new Date(load.record.createdAt) })}.${ext}`;
@@ -529,7 +641,15 @@ export function App() {
         </aside>
 
         <main className="relative flex min-w-0 flex-1 items-start justify-center overflow-auto bg-canvas p-6">
-          <div className="relative shrink-0" style={{ lineHeight: 0, ...imageFrameStyle }}>
+          {showStyledPreview && (
+            <canvas
+              ref={largePreviewRef}
+              className="block h-auto max-w-full shrink-0"
+              aria-label="styled preview of the export"
+              data-testid="style-preview-large"
+            />
+          )}
+          <div className={showStyledPreview ? 'hidden' : 'relative shrink-0'} style={{ lineHeight: 0, ...imageFrameStyle }}>
             <img
               ref={imgRef}
               src={imageUrl ?? undefined}
@@ -579,6 +699,62 @@ export function App() {
             <h4 className="mb-2 font-mono text-[12px] text-muted">text size</h4>
             <input type="range" min={12} max={48} value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} className="w-full" />
             <div className="font-mono text-[12px] text-muted">{fontSize} px</div>
+          </section>
+          <section data-testid="style-panel">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={styleOpts.enabled}
+                onChange={(e) => updateStyle({ enabled: e.target.checked })}
+                data-testid="style-enabled"
+              />
+              <span className="font-mono text-[12px] text-muted">style export</span>
+            </label>
+            {styleOpts.enabled && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="backdrop">
+                  {BACKDROPS.map((b) => (
+                    <button
+                      key={b.id}
+                      role="radio"
+                      aria-checked={styleOpts.backdrop === b.id}
+                      aria-label={b.label}
+                      title={b.label}
+                      onClick={() => updateStyle({ backdrop: b.id })}
+                      className={`size-6 rounded-full border ${styleOpts.backdrop === b.id ? 'ring-2 ring-fg' : 'border-rule'}`}
+                      style={{ background: b.colors.length === 2 ? `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` : b.colors[0] }}
+                      data-testid={`style-backdrop-${b.id}`}
+                    />
+                  ))}
+                </div>
+                <div>
+                  <div className="mb-1 font-mono text-[12px] text-muted">padding</div>
+                  <input type="range" min={PADDING_RANGE.min} max={PADDING_RANGE.max} step={1} value={styleOpts.padding} onChange={(e) => updateStyle({ padding: Number(e.target.value) })} className="w-full" aria-label="padding" />
+                </div>
+                <div>
+                  <div className="mb-1 font-mono text-[12px] text-muted">corners</div>
+                  <input type="range" min={RADIUS_RANGE.min} max={RADIUS_RANGE.max} step={0.1} value={styleOpts.radius} onChange={(e) => updateStyle({ radius: Number(e.target.value) })} className="w-full" aria-label="corner radius" />
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 text-[13px] text-fg">
+                  <input type="checkbox" checked={styleOpts.shadow} onChange={(e) => updateStyle({ shadow: e.target.checked })} />
+                  shadow
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-[13px] text-fg">
+                  <input type="checkbox" checked={styleOpts.frame === 'window'} onChange={(e) => updateStyle({ frame: e.target.checked ? 'window' : 'none' })} data-testid="style-frame" />
+                  window frame
+                </label>
+                <canvas ref={previewRef} className="w-full rounded-sm border border-rule" data-testid="style-preview" aria-label="style preview" />
+                <Button
+                  size="sm"
+                  variant={previewStyled ? 'primary' : 'secondary'}
+                  aria-pressed={previewStyled}
+                  onClick={() => setPreviewStyled((on) => !on)}
+                  data-testid="style-preview-toggle"
+                >
+                  {previewStyled ? 'back to editing' : 'preview styled'}
+                </Button>
+              </div>
+            )}
           </section>
           <section>
             <h4 className="mb-2 font-mono text-[12px] text-muted">zoom</h4>
