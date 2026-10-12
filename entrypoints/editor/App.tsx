@@ -48,6 +48,7 @@ export function App() {
   const imageUrlRef = useRef<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [discardStep, setDiscardStep] = useState<'idle' | 'confirm' | 'deleting'>('idle');
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -402,6 +403,19 @@ export function App() {
     setToast('saved to history');
   }
 
+  /** Removes the just-recorded clip from the library and goes back to history. */
+  async function discardRecording() {
+    if (load.state !== 'ready') return;
+    setDiscardStep('deleting');
+    try {
+      await storeRef.current.remove(load.record.id);
+      window.location.href = libraryUrl();
+    } catch {
+      setDiscardStep('confirm');
+      setToast("couldn't delete the recording. try again");
+    }
+  }
+
   async function copy() {
     const blob = await flatten() ?? (load.state === 'ready' ? load.record.blob : null);
     if (!blob) return;
@@ -456,7 +470,28 @@ export function App() {
           <span className="truncate font-mono text-[12px] text-muted">{filename}</span>
           {size && <span className="font-mono text-[12px] text-muted">· {size.w} × {size.h}</span>}
           <div className="flex-1" />
-          <a href={libraryUrl()} className="px-1 text-[13px] text-muted hover:text-fg" data-testid="editor-history">history</a>
+          {discardStep === 'idle' ? (
+            <Button size="sm" variant="record" onClick={() => setDiscardStep('confirm')} data-testid="discard-recording">
+              discard recording
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2" role="group" aria-label="confirm discarding this recording" data-testid="discard-confirm">
+              <span className="text-[13px] text-fg">delete this recording?</span>
+              <Button size="sm" variant="danger" onClick={discardRecording} disabled={discardStep === 'deleting'} data-testid="discard-confirm-yes">
+                {discardStep === 'deleting' ? 'deleting…' : 'delete'}
+              </Button>
+              <Button size="sm" variant="text" onClick={() => setDiscardStep('idle')} disabled={discardStep === 'deleting'} data-testid="discard-confirm-no">
+                keep
+              </Button>
+            </div>
+          )}
+          <a
+            href={libraryUrl()}
+            className="inline-flex h-7 items-center rounded-sm border border-rule-strong px-3 text-[13px] font-medium leading-[18px] text-fg hover:bg-raised"
+            data-testid="editor-history"
+          >
+            history
+          </a>
           <Button size="sm" onClick={download} data-testid="download">
             <Icon name="download" size={14} />
             download
