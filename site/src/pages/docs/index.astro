@@ -1,0 +1,28 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+---
+
+<Base
+  title="Kapture docs — install, capture modes and privacy"
+  description="Guides for installing Kapture, every screenshot and recording mode with its shortcut, and how your captures are stored locally."
+  breadcrumbs={[{ name: 'Kapture', path: '/' }, { name: 'Docs', path: '/docs/' }]}
+>
+  <Nav />
+  <main id="main-content" class="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
+    <h1 class="text-[clamp(2.25rem,8vw,3rem)] text-balance font-light leading-[1.05] tracking-[-0.02em] text-fg">docs</h1>
+    <ul class="mt-10 flex flex-col gap-6">
+      {docs.map((doc) => (
+        <li>
+          <a href={`/docs/${doc.id}/`} class="text-[20px] font-semibold text-fg underline underline-offset-4">{doc.data.title}</a>
+          <p class="mt-1 text-[16px] leading-7 text-muted">{doc.data.description}</p>
+        </li>
+      ))}
+    </ul>
+  </main>
+  <Footer />
+</Base>

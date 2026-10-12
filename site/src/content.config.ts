@@ -17,4 +17,13 @@ const docs = defineCollection({
   }),
 });
 
-export const collections = { changelog, docs };
+const guides = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/guides' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    order: z.number(),
+  }),
+});
+
+export const collections = { changelog, docs, guides };

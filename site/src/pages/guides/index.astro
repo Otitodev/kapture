@@ -1,0 +1,22 @@
+---
+import { getCollection } from 'astro:content';
+import Article from '../../layouts/Article.astro';
+
+const guides = (await getCollection('guides')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<Article
+  title="Kapture guides — screenshots and screen recording in Chrome"
+  heading="guides"
+  description="How-to guides for full-page screenshots, tab recording with audio, annotating and blurring screenshots, and recording without a watermark in Chrome."
+  breadcrumbs={[{ name: 'Kapture', path: '/' }, { name: 'Guides', path: '/guides/' }]}
+>
+  <ul class="flex flex-col gap-6">
+    {guides.map((guide) => (
+      <li>
+        <a href={`/guides/${guide.id}/`} class="text-[20px] font-semibold text-fg underline underline-offset-4">{guide.data.title}</a>
+        <p class="mt-1 text-[16px] leading-7 text-muted">{guide.data.description}</p>
+      </li>
+    ))}
+  </ul>
+</Article>

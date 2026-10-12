@@ -1,0 +1,38 @@
+---
+import { getCollection, render } from 'astro:content';
+import Article from '../../layouts/Article.astro';
+import { SITE_URL } from '../../consts';
+
+export async function getStaticPaths() {
+  const guides = await getCollection('guides');
+  return guides.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const path = `/guides/${entry.id}/`;
+const article = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: entry.data.title,
+  description: entry.data.description,
+  image: new URL(`/og/${entry.id}.png`, SITE_URL).toString(),
+  url: new URL(path, SITE_URL).toString(),
+};
+---
+
+<Article
+  title={`${entry.data.title} — Kapture`}
+  heading={entry.data.title}
+  description={entry.data.description}
+  image={`/og/${entry.id}.png`}
+  imageAlt={`Kapture guide: ${entry.data.title}`}
+  structuredData={article}
+  breadcrumbs={[
+    { name: 'Kapture', path: '/' },
+    { name: 'Guides', path: '/guides/' },
+    { name: entry.data.title, path },
+  ]}
+>
+  <Content />
+</Article>

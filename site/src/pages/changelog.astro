@@ -8,7 +8,9 @@ import ChangelogEntry from '../components/ChangelogEntry.astro';
 const entries = (await getCollection('changelog')).sort((a, b) => +b.data.date - +a.data.date);
 ---
 
-<Base title="Changelog — Kapture" description="What shipped in each Kapture build.">
+<Base title="Changelog — Kapture" description="What shipped in each Kapture build."
+  breadcrumbs={[{ name: 'Kapture', path: '/' }, { name: 'Changelog', path: '/changelog/' }]}
+>
   <Nav />
   <main id="main-content" class="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
     <h1 class="text-[clamp(2.25rem,8vw,3rem)] font-light leading-[1.05] tracking-[-0.02em] text-fg">changelog</h1>

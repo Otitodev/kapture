@@ -6,7 +6,7 @@ import Bento from '../components/Bento.astro';
 import Privacy from '../components/Privacy.astro';
 import CTA from '../components/CTA.astro';
 import Footer from '../components/Footer.astro';
-import { REPO_URL, SITE_URL } from '../consts';
+import { REPO_URL, SITE_URL, STORE_URL } from '../consts';
 
 const appData = {
   '@context': 'https://schema.org',
@@ -18,14 +18,29 @@ const appData = {
   operatingSystem: 'Desktop Google Chrome',
   image: new URL('/og-image-1200x630.png', SITE_URL).toString(),
   sameAs: REPO_URL,
+  screenshot: new URL('/hero-region.gif', SITE_URL).toString(),
+  featureList: [
+    'Visible area, region, full-page, element and delayed screenshots',
+    'Tab and screen recording with optional microphone audio',
+    'Annotations: arrows, boxes, text, blur and numbered steps',
+    'Searchable on-device library with folders',
+    'No account, no watermark, no upload',
+  ],
+  ...(STORE_URL ? { installUrl: STORE_URL, downloadUrl: STORE_URL } : {}),
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+};
+const siteData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Kapture',
+  url: SITE_URL,
 };
 ---
 
 <Base
   title="Kapture — Private Screenshots & Screen Recording for Chrome"
   description="Capture screenshots and record your screen with Kapture for Chrome. Annotate, search, and save locally. Free to build and install from GitHub."
-  structuredData={appData}
+  structuredData={[appData, siteData]}
 >
   <Nav />
   <main id="main-content">

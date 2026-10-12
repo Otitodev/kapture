@@ -1,9 +1,8 @@
 ---
 import { getCollection, render } from 'astro:content';
-import Base from '../../layouts/Base.astro';
-import Nav from '../../components/Nav.astro';
-import Footer from '../../components/Footer.astro';
+import Article from '../../layouts/Article.astro';
 import AgentInstallPrompt from '../../components/AgentInstallPrompt.astro';
+import { SITE_URL } from '../../consts';
 
 export async function getStaticPaths() {
   const docs = await getCollection('docs');
@@ -12,32 +11,28 @@ export async function getStaticPaths() {
 
 const { entry } = Astro.props;
 const { Content } = await render(entry);
+const path = `/docs/${entry.id}/`;
+const article = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  headline: entry.data.title,
+  description: entry.data.description,
+  url: new URL(path, SITE_URL).toString(),
+  publisher: { '@type': 'Organization', name: 'Kapture', url: SITE_URL },
+};
 ---
 
-<Base title={`${entry.data.title} — Kapture docs`} description={entry.data.description}>
-  <Nav />
-  <main id="main-content" class="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
-    <h1 class="text-[clamp(2.25rem,8vw,3rem)] text-balance font-light leading-[1.05] tracking-[-0.02em] text-fg">{entry.data.title}</h1>
-    <div class="prose-kapture mt-7 flex min-w-0 flex-col gap-4 text-[16px] leading-7 text-fg sm:mt-8">
-      <Content />
-    </div>
-    {entry.id === 'install' && <AgentInstallPrompt />}
-  </main>
-  <Footer />
-</Base>
-
-<style>
-  .prose-kapture :global(h2) { font-size: 24px; font-weight: 600; margin-top: 1.5rem; }
-  .prose-kapture :global(p) { color: var(--k-muted); }
-  .prose-kapture :global(strong) { color: var(--k-fg); }
-  .prose-kapture :global(.table-scroll) { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; border: 1px solid var(--k-rule); border-radius: 8px; }
-  .prose-kapture :global(table) { width: 100%; min-width: 34rem; border-collapse: collapse; font-size: 14px; }
-  .prose-kapture :global(th) { text-align: left; font-family: var(--font-mono); font-size: 12px; color: var(--k-muted); padding: 8px; border-bottom: 1px solid var(--k-rule); }
-  .prose-kapture :global(td) { padding: 8px; border-bottom: 1px solid var(--k-rule); color: var(--k-fg); }
-  .prose-kapture :global(code) { font-family: var(--font-mono); font-size: 13px; background: var(--k-raised); padding: 1px 6px; border-radius: 4px; }
-  .prose-kapture :global(ul) { display: flex; flex-direction: column; gap: 0.5rem; list-style: disc; padding-left: 1.25rem; color: var(--k-muted); }
-  .prose-kapture :global(ol) { display: flex; flex-direction: column; gap: 0.5rem; list-style: decimal; padding-left: 1.25rem; color: var(--k-muted); }
-  .prose-kapture :global(pre) { max-width: 100%; overflow-x: auto; border: 1px solid var(--k-rule); border-radius: 8px; background: var(--k-raised); padding: 1rem; }
-  .prose-kapture :global(pre code) { background: transparent; padding: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .prose-kapture :global(a) { color: var(--k-fg); text-decoration: underline; text-underline-offset: 3px; }
-</style>
+<Article
+  title={`${entry.data.title} — Kapture docs`}
+  heading={entry.data.title}
+  description={entry.data.description}
+  structuredData={article}
+  breadcrumbs={[
+    { name: 'Kapture', path: '/' },
+    { name: 'Docs', path: '/docs/' },
+    { name: entry.data.title, path },
+  ]}
+>
+  <Content />
+  {entry.id === 'install' && <AgentInstallPrompt slot="after" />}
+</Article>
