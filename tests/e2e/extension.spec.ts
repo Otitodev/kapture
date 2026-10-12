@@ -237,6 +237,95 @@ test('editor renders a saved capture, with copy and download', async () => {
   expect(download.suggestedFilename()).toMatch(/^acme\.com-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.png$/);
 });
 
+test('editor: style option frames copy and download but never the saved capture', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/library.html`); // opens the database so its stores exist
+  await page.evaluate(() => chrome.storage.local.remove('kapture.style.v1'));
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#3366cc';
+    ctx.fillRect(0, 0, 400, 300);
+    const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/png'));
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res, rej) => {
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put({ id: 'e2e-style', type: 'screenshot', blob, url: 'https://www.acme.com/pricing', title: 'pricing', createdAt: Date.now(), tags: [] });
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+  const pngSize = (file: string) => {
+    const bytes = fs.readFileSync(file);
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  };
+  const savedSize = () => page.evaluate(async () => {
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res, rej) => {
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    const row = await new Promise<{ blob: Blob }>((res, rej) => {
+      const req = db.transaction('captures').objectStore('captures').get('e2e-style');
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    const bitmap = await createImageBitmap(row.blob);
+    return { width: bitmap.width, height: bitmap.height };
+  });
+
+  const ed = await context.newPage();
+  await ed.goto(`chrome-extension://${extensionId}/editor.html?id=e2e-style`);
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+
+  // Off by default: a download is the plain capture.
+  await expect(ed.getByTestId('style-enabled')).not.toBeChecked();
+  let [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
+  expect(pngSize((await download.path())!)).toEqual({ width: 400, height: 300 });
+
+  // On: 8% padding is 32px a side, and the window frame adds a 28px title bar.
+  await ed.getByTestId('style-enabled').check();
+  await ed.getByTestId('style-backdrop-paper').click();
+  await expect(ed.getByTestId('style-preview')).toBeVisible();
+  [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
+  expect(pngSize((await download.path())!)).toEqual({ width: 464, height: 392 });
+
+  // "Preview styled" swaps the editing view for a full-size styled preview, and back again.
+  await ed.getByTestId('style-preview-toggle').click();
+  await expect(ed.getByTestId('style-preview-large')).toBeVisible();
+  await expect(ed.getByTestId('capture-image')).toBeHidden();
+  await expect(ed.getByTestId('annotate-canvas')).toBeHidden();
+  await expect.poll(() => ed.getByTestId('style-preview-large').evaluate((c) => `${(c as HTMLCanvasElement).width}x${(c as HTMLCanvasElement).height}`)).toBe('464x392');
+  await ed.getByTestId('style-preview-toggle').click();
+  await expect(ed.getByTestId('style-preview-large')).toHaveCount(0);
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+
+  // Turning the frame off drops the title bar.
+  await ed.getByTestId('style-frame').uncheck();
+  [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
+  expect(pngSize((await download.path())!)).toEqual({ width: 464, height: 364 });
+
+  // Saving to history keeps the original capture, unstyled.
+  await ed.getByTestId('save').click();
+  await expect(ed.getByText('saved to history')).toBeVisible();
+  expect(await savedSize()).toEqual({ width: 400, height: 300 });
+
+  // The choice is remembered the next time the editor opens.
+  await ed.reload();
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+  await expect(ed.getByTestId('style-enabled')).toBeChecked();
+  await expect(ed.getByTestId('style-backdrop-paper')).toHaveAttribute('aria-checked', 'true');
+  await expect(ed.getByTestId('style-frame')).not.toBeChecked();
+});
+
 test('editor: can annotate, undo, and see the layer count', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/editor.html?id=seed`);
