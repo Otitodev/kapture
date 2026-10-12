@@ -104,14 +104,19 @@ type FullPageMetrics = {
   nested: boolean;
 };
 
-/** Read page dimensions and temporarily suppress sticky/fixed UI before taking scroll captures. */
+/** Where a fixed or sticky element is shown while the page is stitched together. */
+type FloatingZone = 'top' | 'bottom' | 'hide';
+type FloatingEntry = { element: HTMLElement; visibility: string; priority: string; zone: FloatingZone };
+type FullPageWindow = Window & {
+  __kaptureFullPageRestore?: FloatingEntry[];
+  __kaptureFullPageStyle?: HTMLStyleElement;
+  __kaptureFullPageScroller?: HTMLElement | null;
+};
+
+/** Read page dimensions and classify sticky/fixed UI so it can be shown once instead of repeating in every tile. */
 function prepareFullPageCapture(): FullPageMetrics {
   const doc = document.documentElement;
-  const win = window as Window & {
-    __kaptureFullPageRestore?: Array<{ element: HTMLElement; visibility: string; priority: string }>;
-    __kaptureFullPageStyle?: HTMLStyleElement;
-    __kaptureFullPageScroller?: HTMLElement | null;
-  };
+  const win = window as FullPageWindow;
   const documentHeight = Math.max(doc.scrollHeight, document.body?.scrollHeight ?? 0);
   const documentWidth = Math.max(doc.scrollWidth, document.body?.scrollWidth ?? 0);
   const documentRangeY = Math.max(0, documentHeight - window.innerHeight);
@@ -122,22 +127,32 @@ function prepareFullPageCapture(): FullPageMetrics {
   // A page with an ordinary document scrollbar can also contain a very long
   // sidebar, code viewer, or chat pane. That inner element is not the page to
   // capture. Only treat an element as the page scroller when the document has
-  // no vertical range and the element actually fills the viewport.
+  // no vertical range and the element is a main content pane: most of the
+  // window's height and a substantial share of its width, which still admits
+  // app layouts where a sidebar sits beside the scrolling content.
   const nestedScroller = documentRangeY <= 1
     ? candidates.find(({ element }) => {
       const rect = element.getBoundingClientRect();
-      return rect.width >= window.innerWidth * 0.8 && rect.height >= window.innerHeight * 0.8;
+      return rect.width >= window.innerWidth * 0.4 && rect.height >= window.innerHeight * 0.7;
     })?.element ?? null
     : null;
   const scroller = nestedScroller;
   const protectedAncestors = new Set<Element>();
   for (let ancestor: Element | null = scroller; ancestor; ancestor = ancestor.parentElement) protectedAncestors.add(ancestor);
-  const restore: Array<{ element: HTMLElement; visibility: string; priority: string }> = [];
+  const restore: FloatingEntry[] = [];
   for (const element of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
     const position = getComputedStyle(element).position;
     if ((position === 'fixed' || position === 'sticky') && !protectedAncestors.has(element)) {
-      restore.push({ element, visibility: element.style.getPropertyValue('visibility'), priority: element.style.getPropertyPriority('visibility') });
-      element.style.setProperty('visibility', 'hidden', 'important');
+      const rect = element.getBoundingClientRect();
+      const coversWindow = rect.width >= window.innerWidth * 0.9 && rect.height >= window.innerHeight * 0.9;
+      // Header-like elements are kept for the first tile and footer-like ones for the last;
+      // overlays that cover the window, and anything floating mid-page, are always hidden.
+      let zone: FloatingZone = 'hide';
+      if (!coversWindow && rect.width > 0 && rect.height > 0) {
+        if (rect.top < window.innerHeight * 0.25) zone = 'top';
+        else if (rect.bottom > window.innerHeight * 0.75) zone = 'bottom';
+      }
+      restore.push({ element, visibility: element.style.getPropertyValue('visibility'), priority: element.style.getPropertyPriority('visibility'), zone });
     }
   }
   const style = document.createElement('style');
@@ -162,24 +177,46 @@ function prepareFullPageCapture(): FullPageMetrics {
   };
 }
 
-/** Scroll and wait for layout/paint to settle; return the actual position after browser clamping. */
-async function scrollForFullPageCapture(x: number, y: number, nested: boolean): Promise<{ x: number; y: number; sourceX: number; sourceY: number; sourceWidth: number; sourceHeight: number }> {
-  const win = window as Window & { __kaptureFullPageScroller?: HTMLElement | null };
+type ScrollResult = {
+  x: number;
+  y: number;
+  sourceX: number;
+  sourceY: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  /** Scrollable size after the page settled; it grows on infinite-scroll and lazy-rendered pages. */
+  scrollWidth: number;
+  scrollHeight: number;
+  atStart: boolean;
+  atEnd: boolean;
+};
+
+/**
+ * Scroll and wait for layout/paint to settle; return the actual position after browser clamping.
+ * Also waits for lazy images near the viewport, gives the page a moment to grow when it reaches
+ * the bottom, and shows sticky/fixed elements only where they belong (header-like on the first
+ * tile, footer-like on the last).
+ */
+async function scrollForFullPageCapture(x: number, y: number, nested: boolean): Promise<ScrollResult> {
+  const win = window as FullPageWindow;
   const scroller = nested ? win.__kaptureFullPageScroller : document.scrollingElement;
   if (!scroller) throw new Error('could not find the page scroll container');
-  const requestedX = Math.min(x, Math.max(0, scroller.scrollWidth - scroller.clientWidth));
-  const requestedY = Math.min(y, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
+  const maxX = () => Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  const maxY = () => Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  const requestedX = Math.min(x, maxX());
+  const requestedY = Math.min(y, maxY());
   const setPosition = () => {
     scroller.scrollLeft = requestedX;
     scroller.scrollTop = requestedY;
     if (!nested) window.scrollTo(requestedX, requestedY);
   };
   const readPosition = () => ({ x: nested ? scroller.scrollLeft : window.scrollX, y: nested ? scroller.scrollTop : window.scrollY });
+  const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   const deadline = performance.now() + 1500;
   let stableFrames = 0;
   setPosition();
   while (performance.now() < deadline && stableFrames < 3) {
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await frame();
     const position = readPosition();
     if (Math.abs(position.x - requestedX) <= 1 && Math.abs(position.y - requestedY) <= 1) stableFrames++;
     else {
@@ -189,23 +226,56 @@ async function scrollForFullPageCapture(x: number, y: number, nested: boolean): 
   }
   if (stableFrames < 3) throw new Error('The page did not reach the requested scroll position. Try again after the page finishes moving.');
   await new Promise((resolve) => setTimeout(resolve, 80));
+
+  // Lazy images only start loading once they are near the viewport, so wait for those to finish.
+  const pendingImages = () => Array.from(document.images).filter((image) => {
+    if (image.complete) return false;
+    const rect = image.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && rect.bottom > -200 && rect.top < window.innerHeight + 200;
+  });
+  const imageDeadline = performance.now() + 2500;
+  while (performance.now() < imageDeadline && pendingImages().length > 0) await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // At the bottom, infinite-scroll pages fetch more content; give that a moment before deciding we are done.
+  if (readPosition().y >= maxY() - 1) {
+    const startHeight = scroller.scrollHeight;
+    const growthDeadline = performance.now() + 700;
+    while (performance.now() < growthDeadline && scroller.scrollHeight === startHeight) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (scroller.scrollHeight !== startHeight) await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  const position = readPosition();
+  const atStart = position.x <= 1 && position.y <= 1;
+  const atEnd = position.y >= maxY() - 1 && position.x >= maxX() - 1;
+  for (const { element, visibility, priority, zone } of win.__kaptureFullPageRestore ?? []) {
+    const visible = (zone === 'top' && atStart) || (zone === 'bottom' && atEnd);
+    if (visible) {
+      if (visibility) element.style.setProperty('visibility', visibility, priority);
+      else element.style.removeProperty('visibility');
+    } else {
+      element.style.setProperty('visibility', 'hidden', 'important');
+    }
+  }
+  await frame();
+  await frame();
+
   const rect = nested ? scroller.getBoundingClientRect() : null;
   return {
-    ...readPosition(),
+    ...position,
     sourceX: rect ? rect.left + scroller.clientLeft : 0,
     sourceY: rect ? rect.top + scroller.clientTop : 0,
     sourceWidth: nested ? scroller.clientWidth : window.innerWidth,
     sourceHeight: nested ? scroller.clientHeight : window.innerHeight,
+    scrollWidth: scroller.scrollWidth,
+    scrollHeight: scroller.scrollHeight,
+    atStart,
+    atEnd,
   };
 }
 
 /** Restore all page changes made for the capture and return the user to their original scroll position. */
 function restoreFullPageCapture(x: number, y: number, documentX: number, documentY: number): void {
-  const win = window as Window & {
-    __kaptureFullPageRestore?: Array<{ element: HTMLElement; visibility: string; priority: string }>;
-    __kaptureFullPageStyle?: HTMLStyleElement;
-    __kaptureFullPageScroller?: HTMLElement | null;
-  };
+  const win = window as FullPageWindow;
   for (const { element, visibility, priority } of win.__kaptureFullPageRestore ?? []) {
     if (visibility) element.style.setProperty('visibility', visibility, priority);
     else element.style.removeProperty('visibility');
@@ -230,6 +300,28 @@ function scrollPositions(max: number, viewport: number): number[] {
   return positions;
 }
 
+/** Most rows of tiles one capture will add, so an endless feed finishes instead of scrolling forever. */
+export const MAX_FULL_PAGE_ROWS = 40;
+/** Pages that would need shrinking below this fraction to fit are refused as too large. */
+export const MIN_FULL_PAGE_SCALE = 0.25;
+
+/**
+ * Factor (at most 1) that shrinks a width x height image until it fits Chrome's canvas limits,
+ * or 0 when that would make it smaller than MIN_FULL_PAGE_SCALE.
+ */
+export function fullPageFitScale(width: number, height: number): number {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 0;
+  const scale = Math.min(
+    1,
+    MAX_FULL_PAGE_DIMENSION / width,
+    MAX_FULL_PAGE_DIMENSION / height,
+    Math.sqrt(MAX_FULL_PAGE_PIXELS / (width * height)),
+  );
+  // Shave a hair so rounding up the output size never lands over a limit.
+  const fitted = scale < 1 ? scale * 0.999 : 1;
+  return fitted >= MIN_FULL_PAGE_SCALE ? fitted : 0;
+}
+
 async function captureFullPageByScrolling(tab: Browser.tabs.Tab, reportProgress: FullPageProgressReporter): Promise<Blob> {
   if (tab.id === undefined || tab.windowId === undefined) throw new Error('no active tab');
   const target = { tabId: tab.id };
@@ -241,23 +333,24 @@ async function captureFullPageByScrolling(tab: Browser.tabs.Tab, reportProgress:
 
   try {
     const width = Math.ceil(metrics.width);
-    const height = Math.ceil(metrics.height);
-    if (!isFullPageCaptureWithinLimits(width, height)) {
-      throw new Error('This page is too large for one full-page image. Try a smaller region instead.');
-    }
+    let height = Math.ceil(metrics.height);
     const xs = scrollPositions(Math.max(0, width - metrics.viewportWidth), metrics.viewportWidth);
-    const ys = scrollPositions(Math.max(0, height - metrics.viewportHeight), metrics.viewportHeight);
-    const totalTiles = xs.length * ys.length;
+    const rowStep = Math.max(1, Math.floor(metrics.viewportHeight * 0.8));
+    const rowCount = (pageHeight: number) => scrollPositions(Math.max(0, pageHeight - metrics.viewportHeight), metrics.viewportHeight).length;
     let completedTiles = 0;
-    await reportProgress({ phase: 'capturing', completed: completedTiles, total: totalTiles });
+    await reportProgress({ phase: 'capturing', completed: completedTiles, total: xs.length * rowCount(height) });
     let canvas: OffscreenCanvas | null = null;
     let context: OffscreenCanvasRenderingContext2D | null = null;
     let scaleX = 1;
     let scaleY = 1;
+    let fit = 1;
+    let rows = 0;
+    let y = 0;
 
-    for (const y of ys) {
+    while (true) {
+      const rowY = Math.min(y, Math.max(0, height - metrics.viewportHeight));
       for (const x of xs) {
-        const [positionResult] = await chrome.scripting.executeScript({ target, func: scrollForFullPageCapture, args: [x, y, metrics.nested] });
+        const [positionResult] = await chrome.scripting.executeScript({ target, func: scrollForFullPageCapture, args: [x, rowY, metrics.nested] });
         const position = positionResult?.result;
         if (!position) throw new Error('could not scroll the page for capture');
 
@@ -270,19 +363,37 @@ async function captureFullPageByScrolling(tab: Browser.tabs.Tab, reportProgress:
         if (!canvas) {
           scaleX = bitmap.width / metrics.captureViewportWidth;
           scaleY = bitmap.height / metrics.captureViewportHeight;
-          const outputWidth = Math.round(width * scaleX);
-          const outputHeight = Math.round(height * scaleY);
-          if (!isFullPageCaptureWithinLimits(outputWidth, outputHeight)) {
+          // Too large for one canvas at this display scale: shrink the result rather than failing.
+          fit = fullPageFitScale(Math.round(width * scaleX), Math.round(height * scaleY));
+          if (!fit) {
             bitmap.close();
-            throw new Error('This page is too large at the current display scale. Try a smaller region instead.');
+            throw new Error('This page is too large for one full-page image. Try a smaller region instead.');
           }
-          canvas = new OffscreenCanvas(outputWidth, outputHeight);
+          canvas = new OffscreenCanvas(Math.round(width * scaleX * fit), Math.round(height * scaleY * fit));
           context = canvas.getContext('2d');
           if (!context) {
             bitmap.close();
             throw new Error('could not assemble the full-page image');
           }
         }
+
+        // The page may have grown (infinite scroll, lazy rendering). Extend the canvas while the result still fits.
+        const grownHeight = Math.ceil(position.scrollHeight);
+        if (grownHeight > height) {
+          const nextWidth: number = canvas.width;
+          const nextHeight: number = Math.round(grownHeight * scaleY * fit);
+          if (rows < MAX_FULL_PAGE_ROWS && isFullPageCaptureWithinLimits(nextWidth, nextHeight)) {
+            const grown: OffscreenCanvas = new OffscreenCanvas(nextWidth, nextHeight);
+            const grownContext = grown.getContext('2d');
+            if (grownContext) {
+              grownContext.drawImage(canvas, 0, 0);
+              canvas = grown;
+              context = grownContext;
+              height = grownHeight;
+            }
+          }
+        }
+
         const sourceX = Math.round(position.sourceX * scaleX);
         const sourceY = Math.round(position.sourceY * scaleY);
         const sourceWidth = Math.min(Math.round(position.sourceWidth * scaleX), bitmap.width - sourceX);
@@ -293,19 +404,24 @@ async function captureFullPageByScrolling(tab: Browser.tabs.Tab, reportProgress:
           sourceY,
           sourceWidth,
           sourceHeight,
-          Math.round(position.x * scaleX),
-          Math.round(position.y * scaleY),
-          sourceWidth,
-          sourceHeight,
+          Math.round(position.x * scaleX * fit),
+          Math.round(position.y * scaleY * fit),
+          Math.round(sourceWidth * fit),
+          Math.round(sourceHeight * fit),
         );
         bitmap.close();
         completedTiles++;
-        await reportProgress({ phase: 'capturing', completed: completedTiles, total: totalTiles });
+        await reportProgress({ phase: 'capturing', completed: completedTiles, total: Math.max(completedTiles, xs.length * rowCount(height)) });
       }
+
+      rows++;
+      const reachedBottom = rowY >= Math.max(0, height - metrics.viewportHeight) - 1;
+      if (reachedBottom || rows >= MAX_FULL_PAGE_ROWS) break;
+      y = rowY + rowStep;
     }
 
     if (!canvas) throw new Error('could not capture the page');
-    await reportProgress({ phase: 'saving', completed: totalTiles, total: totalTiles });
+    await reportProgress({ phase: 'saving', completed: completedTiles, total: completedTiles });
     return await canvas.convertToBlob({ type: 'image/png' });
   } finally {
     await restore();
