@@ -2,6 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page } from '@playwri
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 
 const builtExtensionPath = path.resolve('.output/chrome-mv3');
 const captureDisclosureKey = 'kapture.capture-disclosure.v1';
@@ -654,6 +655,150 @@ test('full-page capture uses the document when a page also has a longer inner sc
   expect(topColor[0]!).toBeGreaterThan(180); // document's red top section, not the inner panel
   await expect.poll(() => web.evaluate(() => window.scrollY)).toBe(900);
   await expect.poll(() => web.locator('#deep-panel').evaluate((element) => element.scrollTop)).toBe(2200);
+});
+
+/** Runs a full-page capture from the popup and returns the saved image's size plus RGB samples at [x fraction, y px]. */
+async function captureFullPageSamples(popup: Page, points: Array<[number, number]>) {
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({ kapture: true, type: 'capture:fullpage', target: 'background', payload: {} }),
+  );
+  const ed = await waitForEditorPage();
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+  return ed.getByTestId('capture-image').evaluate((image, samplePoints) => {
+    const img = image as HTMLImageElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    return {
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      colors: samplePoints.map(([fx, y]) => {
+        const pixel = ctx.getImageData(Math.floor(img.naturalWidth * fx), Math.min(img.naturalHeight - 1, Math.floor(y)), 1, 1).data;
+        return [pixel[0]!, pixel[1]!, pixel[2]!];
+      }),
+    };
+  }, points);
+}
+
+/** A 1x1 solid-colour PNG, used as a stand-in for a slow network image. */
+function solidPng(r: number, g: number, b: number): Buffer {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (data: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of data) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // RGB
+  const pixels = zlib.deflateSync(Buffer.from([0, r, g, b]));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', pixels), chunk('IEND', Buffer.alloc(0))]);
+}
+
+const FOUR_SECTIONS = `
+  <section style="background:#e53935">top</section>
+  <section style="background:#43a047">upper middle</section>
+  <section style="background:#1e88e5">lower middle</section>
+  <section style="background:#fdd835">bottom</section>`;
+const SECTION_STYLE = `
+  html,body{margin:0;padding:0}
+  section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}`;
+
+test('full-page capture keeps a sticky header once at the top and not repeated', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>${SECTION_STYLE}
+    header{position:sticky;top:0;height:80px;background:#8e24aa;color:#fff;font:24px sans-serif;padding:24px;box-sizing:border-box;z-index:5}
+  </style><header>sticky header</header>${FOUR_SECTIONS}`);
+  // The header is purple (142,36,170) at y 0-80. Later tiles start about 0.8 viewports apart (576px at
+  // the default 720px viewport), so a repeated header would show purple at y≈576 and y≈1152.
+  const shot = await captureFullPageSamples(popup, [[0.5, 60], [0.5, 600], [0.5, 1180]]);
+  expect(shot.colors[0]![1]).toBeLessThan(100);  // purple at the top, not the white page behind it
+  expect(shot.colors[1]![2]).toBeLessThan(120);  // red section at y=600, no repeated header
+  expect(shot.colors[2]![2]).toBeLessThan(120);  // green section at y=1180, no repeated header
+});
+
+test('full-page capture includes content that loads while scrolling', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>${SECTION_STYLE}</style><div id="feed">${FOUR_SECTIONS}</div>
+  <script>
+    let extra = 0;
+    const colors = ['#8e24aa', '#00acc1', '#f4511e', '#6d4c41'];
+    addEventListener('scroll', () => {
+      const nearBottom = scrollY + innerHeight >= document.documentElement.scrollHeight - 200;
+      if (nearBottom && extra < colors.length) {
+        const s = document.createElement('section');
+        s.style.background = colors[extra++];
+        s.textContent = 'loaded ' + extra;
+        document.getElementById('feed').append(s);
+      }
+    });
+  </script>`);
+  const shot = await captureFullPageSamples(popup, [[0.5, 4 * 600 + 100], [0.5, 7 * 600 + 100]]);
+  expect(shot.height).toBeGreaterThan(4 * 600 + 600 * 3); // grew beyond the initial 2400px
+  expect(shot.colors[0]![2]).toBeGreaterThan(140);         // first loaded section (purple)
+  expect(shot.colors[1]![0]).toBeGreaterThan(80);          // later loaded section (brown) not white/blank
+  expect(shot.colors[1]![0]).toBeLessThan(200);
+});
+
+test('full-page capture waits for a slow image that only starts loading when scrolled into view', async () => {
+  const { web, popup } = await activeFakePage();
+  const png = solidPng(229, 57, 53);
+  let imageRequests = 0;
+  // Many sites set an image's src only when an observer sees it enter the viewport, so the
+  // request begins when the capture scrolls there. Make it slower than the old fixed wait.
+  await context.route('https://kapture-test.example/lazy.png', async (route) => {
+    imageRequests++;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await route.fulfill({ status: 200, contentType: 'image/png', body: png });
+  });
+  try {
+    await web.setContent(`<!doctype html><style>${SECTION_STYLE} img{display:block;width:100%;height:600px}</style>
+      <section style="background:#ffffff">one</section><section style="background:#ffffff">two</section>
+      <section style="background:#ffffff">three</section>
+      <img data-src="https://kapture-test.example/lazy.png" alt="">
+      <script>
+        const image = document.querySelector('img');
+        new IntersectionObserver((entries, observer) => {
+          if (entries.some((entry) => entry.isIntersecting)) { image.src = image.dataset.src; observer.disconnect(); }
+        }).observe(image);
+      </script>`);
+    const shot = await captureFullPageSamples(popup, [[0.5, 3 * 600 + 300]]);
+    expect(imageRequests).toBe(1);
+    expect(shot.colors[0]![0]).toBeGreaterThan(200); // the image (229,57,53) rendered, not the white page
+    expect(shot.colors[0]![1]).toBeLessThan(100);
+  } finally {
+    await context.unroute('https://kapture-test.example/lazy.png');
+  }
+});
+
+test('full-page capture finds a scroll pane beside a sidebar (Notion-style layout)', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden}
+    #app{display:flex;width:100vw;height:100vh}
+    #sidebar{flex:0 0 45%;background:#263238;color:#fff;font:24px sans-serif;padding:24px}
+    #pane{flex:1;overflow-y:auto}
+    section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}
+  </style><div id="app"><nav id="sidebar">sidebar</nav><main id="pane">${FOUR_SECTIONS}</main></div>`);
+  const shot = await captureFullPageSamples(popup, [[0.8, 100], [0.8, 3 * 600 + 100]]);
+  expect(shot.height).toBeGreaterThan(2000); // the whole pane, not just one viewport
+  expect(shot.colors[1]![0]).toBeGreaterThan(180); // yellow bottom section reached
 });
 
 test('delayed capture saves and opens the editor', async () => {
