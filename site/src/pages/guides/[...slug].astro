@@ -16,6 +16,7 @@ const article = {
   '@type': 'Article',
   headline: entry.data.title,
   description: entry.data.description,
+  image: new URL(`/og/${entry.id}.png`, SITE_URL).toString(),
   url: new URL(path, SITE_URL).toString(),
 };
 ---
@@ -24,6 +25,8 @@ const article = {
   title={`${entry.data.title} — Kapture`}
   heading={entry.data.title}
   description={entry.data.description}
+  image={`/og/${entry.id}.png`}
+  imageAlt={`Kapture guide: ${entry.data.title}`}
   structuredData={article}
   breadcrumbs={[
     { name: 'Kapture', path: '/' },

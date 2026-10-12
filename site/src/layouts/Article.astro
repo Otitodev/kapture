@@ -7,14 +7,16 @@ interface Props {
   title: string;
   heading: string;
   description: string;
+  image?: string;
+  imageAlt?: string;
   structuredData?: Record<string, unknown> | Record<string, unknown>[];
   breadcrumbs?: { name: string; path: string }[];
 }
 
-const { title, heading, description, structuredData, breadcrumbs } = Astro.props;
+const { title, heading, description, image, imageAlt, structuredData, breadcrumbs } = Astro.props;
 ---
 
-<Base title={title} description={description} structuredData={structuredData} breadcrumbs={breadcrumbs}>
+<Base title={title} description={description} image={image} imageAlt={imageAlt} structuredData={structuredData} breadcrumbs={breadcrumbs}>
   <Nav />
   <main id="main-content" class="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
     <h1 class="text-[clamp(2.25rem,8vw,3rem)] text-balance font-light leading-[1.05] tracking-[-0.02em] text-fg">{heading}</h1>
