@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { CaptureStore, captureDisplayName, type CaptureRecord } from '@/lib/db';
+import { libraryUrl } from '@/lib/capture';
 import { buildFilename, DEFAULT_FILENAME_TEMPLATE } from '@/lib/filename';
 import { extensionForMimeType } from '@/lib/recording';
 import {
@@ -96,7 +97,7 @@ export function App() {
   useEffect(() => {
     drawAnnotations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load, zoom]);
+  }, [load, size, zoom]);
 
   function currentAnnos(): Anno[] {
     return historyRef.current.current;
@@ -441,6 +442,9 @@ export function App() {
   const isVideo = record.type === 'recording' || (record.blob.type || '').startsWith('video');
   const ext = isVideo ? extensionForMimeType(record.blob.type || '') : 'png';
   const filename = `${buildFilename(DEFAULT_FILENAME_TEMPLATE, { url: record.url, title: captureDisplayName(record), date: new Date(record.createdAt) })}.${ext}`;
+  const imageFrameStyle = size
+    ? { width: size.w * zoom, aspectRatio: `${size.w} / ${size.h}` }
+    : undefined;
 
   // Video captures get a plain playback view (no annotation canvas).
   if (isVideo) {
@@ -452,6 +456,7 @@ export function App() {
           <span className="truncate font-mono text-[12px] text-muted">{filename}</span>
           {size && <span className="font-mono text-[12px] text-muted">· {size.w} × {size.h}</span>}
           <div className="flex-1" />
+          <a href={libraryUrl()} className="px-1 text-[13px] text-muted hover:text-fg" data-testid="editor-history">history</a>
           <Button size="sm" onClick={download} data-testid="download">
             <Icon name="download" size={14} />
             download
@@ -494,6 +499,7 @@ export function App() {
           <Icon name="redo" size={16} />
         </button>
         <div className="flex-1" />
+        <a href={libraryUrl()} className="px-1 text-[13px] text-muted hover:text-fg" data-testid="editor-history">history</a>
         <Button size="sm" onClick={copy} data-testid="copy">
           <Icon name="copy" size={14} />
           copy
@@ -522,15 +528,14 @@ export function App() {
           ))}
         </aside>
 
-        <main className="relative flex min-w-0 flex-1 items-center justify-center overflow-auto bg-canvas p-6">
-          <div className="relative" style={{ lineHeight: 0 }}>
+        <main className="relative flex min-w-0 flex-1 items-start justify-center overflow-auto bg-canvas p-6">
+          <div className="relative shrink-0" style={{ lineHeight: 0, ...imageFrameStyle }}>
             <img
               ref={imgRef}
               src={imageUrl ?? undefined}
               alt={captureDisplayName(record)}
               onLoad={(e) => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-              className="shadow-[0_0_0_1px_#000,0_20px_60px_rgba(0,0,0,0.4)]"
-              style={{ width: size ? size.w * zoom : undefined, height: size ? size.h * zoom : undefined }}
+              className="block h-auto w-full max-w-none shadow-[0_0_0_1px_#000,0_20px_60px_rgba(0,0,0,0.4)]"
               draggable={false}
               data-testid="capture-image"
             />
@@ -539,8 +544,7 @@ export function App() {
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
-              className="absolute left-0 top-0 cursor-crosshair"
-              style={{ width: size ? size.w * zoom : undefined, height: size ? size.h * zoom : undefined }}
+              className="absolute inset-0 h-full w-full cursor-crosshair"
               data-testid="annotate-canvas"
             />
           </div>

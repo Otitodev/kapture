@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
-import type { CaptureResult, RegionInput, RegionResult } from './capture';
+import type { CaptureResult, FullPageCaptureProgress, RegionInput, RegionResult } from './capture';
 
-export type Target = 'background' | 'offscreen' | 'content';
+export type Target = 'background' | 'offscreen' | 'content' | 'popup';
 
 export interface PingResponse {
   pong: true;
@@ -18,6 +18,8 @@ export interface MessageMap {
   'offscreen:ping-via-background': { target: 'background'; req: { from: string }; res: PingResponse };
   'capture:visible': { target: 'background'; req: Record<string, never>; res: CaptureResult };
   'capture:fullpage': { target: 'background'; req: Record<string, never>; res: CaptureResult };
+  /** Background reports progress to the open popup while a full-page capture is in progress. */
+  'capture:progress': { target: 'popup'; req: FullPageCaptureProgress; res: { ok: true } };
   'capture:delayed': { target: 'background'; req: { delayMs: number }; res: CaptureResult };
   /** Popup or shortcut asks the background to open the region overlay on the active tab. */
   'region:begin': { target: 'background'; req: Record<string, never>; res: { ok: boolean; error?: string } };
@@ -68,6 +70,7 @@ const TARGETS: { [K in MessageType]: MessageMap[K]['target'] } = {
   'offscreen:ping-via-background': 'background',
   'capture:visible': 'background',
   'capture:fullpage': 'background',
+  'capture:progress': 'popup',
   'capture:delayed': 'background',
   'region:begin': 'background',
   'region:start': 'content',
@@ -113,8 +116,8 @@ type Handlers<G extends Target> = {
  * Registers handlers for messages addressed to `target`. Messages for other
  * targets are ignored so only the intended context answers.
  */
-export function onMessage<G extends Target>(target: G, handlers: Handlers<G>): void {
-  browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+export function onMessage<G extends Target>(target: G, handlers: Handlers<G>): () => void {
+  const listener = (raw: unknown, sender: Browser.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
     const msg = raw as Partial<Envelope> | undefined;
     if (!msg?.kapture || msg.target !== target || !msg.type) return;
     const handler = (handlers as Record<string, ((p: unknown, s: typeof sender) => unknown) | undefined>)[msg.type];
@@ -123,5 +126,7 @@ export function onMessage<G extends Target>(target: G, handlers: Handlers<G>): v
       sendResponse({ error: String(err) }),
     );
     return true; // keep the channel open for the async response
-  });
+  };
+  browser.runtime.onMessage.addListener(listener);
+  return () => browser.runtime.onMessage.removeListener(listener);
 }

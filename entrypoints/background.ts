@@ -7,11 +7,13 @@ import {
   captureRegion,
   captureVisible,
   editorUrl,
+  type FullPageCaptureProgress,
   isCapturableUrl,
   type CaptureResult,
 } from '@/lib/capture';
 import { getMicEnabled, RECORDING_FLAG_KEY } from '@/lib/recording';
 import { CAPTURE_DISCLOSURE_REQUIRED_MESSAGE, hasCaptureDisclosureConsent } from '@/lib/privacy';
+import { setFailureBadge, setLastError } from '@/lib/lastError';
 
 async function requireCaptureDisclosure(): Promise<boolean> {
   if (await hasCaptureDisclosureConsent()) return true;
@@ -30,9 +32,14 @@ async function captureVisibleAndOpen(): Promise<CaptureResult> {
   return result;
 }
 
+function reportFullPageProgress(progress: FullPageCaptureProgress): Promise<void> {
+  // Shortcuts have no popup to receive this event, which is expected.
+  return sendMessage('capture:progress', progress).then(() => undefined).catch(() => {});
+}
+
 async function captureFullPageAndOpen(): Promise<CaptureResult> {
   if (!(await requireCaptureDisclosure())) return { ok: false, error: CAPTURE_DISCLOSURE_REQUIRED_MESSAGE };
-  const result = await captureFullPage();
+  const result = await captureFullPage(undefined, reportFullPageProgress);
   if (result.ok) await browser.tabs.create({ url: editorUrl(result.id) });
   return result;
 }
@@ -119,6 +126,32 @@ async function startRecording(mode: 'tab' | 'screen', requestedMic?: boolean): P
   }
 }
 
+/** Runs a keyboard-shortcut action, making failures visible (shortcuts have no popup of their own). */
+async function runShortcutCommand(action: () => Promise<{ ok: boolean; error?: string }>): Promise<void> {
+  let result: { ok: boolean; error?: string };
+  try {
+    result = await action();
+  } catch (err) {
+    result = { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  if (!result.ok) await showShortcutFailure(result.error ?? 'capture failed');
+}
+
+/**
+ * Surfaces a shortcut failure: remembers it for the next popup open, flags
+ * the toolbar icon, and tries to open the popup itself. The disclosure
+ * refusal is skipped because it already opened a consent tab.
+ */
+async function showShortcutFailure(message: string): Promise<void> {
+  if (message === CAPTURE_DISCLOSURE_REQUIRED_MESSAGE) return;
+  await setLastError(message).catch(() => {});
+  await setFailureBadge();
+  await browser.action.openPopup().catch(() => {
+    // Headless or unfocused windows cannot open the popup; the badge and the
+    // stored error still surface it when the popup opens next.
+  });
+}
+
 export default defineBackground(() => {
   // The service worker sleeps, so keep it stateless: no module-level mutable state.
   onMessage('background', {
@@ -184,9 +217,9 @@ export default defineBackground(() => {
   });
 
   browser.commands.onCommand.addListener((command) => {
-    if (command === 'capture-visible') void captureVisibleAndOpen();
-    if (command === 'capture-region') void beginRegion();
-    if (command === 'capture-fullpage') void captureFullPageAndOpen();
-    if (command === 'record-tab') void startRecording('tab');
+    if (command === 'capture-visible') void runShortcutCommand(() => captureVisibleAndOpen());
+    if (command === 'capture-region') void runShortcutCommand(() => beginRegion());
+    if (command === 'capture-fullpage') void runShortcutCommand(() => captureFullPageAndOpen());
+    if (command === 'record-tab') void runShortcutCommand(() => startRecording('tab'));
   });
 });

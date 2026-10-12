@@ -1,0 +1,23 @@
+{
+  "name": "kapture-promo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts KapturePromo renders/kapture-promo.mp4 --codec h264 --crf 20 --browser-executable \"C:/Program Files/Google/Chrome/Application/chrome.exe\" --concurrency 3",
+    "render:color": "remotion render src/index.ts KaptureColorPromo renders/kapture-color-promo.mp4 --codec h264 --crf 20 --browser-executable \"C:/Program Files/Google/Chrome/Application/chrome.exe\" --concurrency 3",
+    "score": "python scripts/make_score.py"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.534",
+    "@remotion/media": "4.0.534",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.534"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.0"
+  }
+}

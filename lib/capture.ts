@@ -22,6 +22,12 @@ export function isCapturableUrl(url: string | undefined): boolean {
 }
 
 export type CaptureResult = { ok: true; id: string } | { ok: false; error: string };
+export type FullPageCaptureProgress = {
+  phase: 'preparing' | 'capturing' | 'saving';
+  completed: number;
+  total: number;
+};
+type FullPageProgressReporter = (progress: FullPageCaptureProgress) => void | Promise<void>;
 
 /** Captures the visible area of the active tab and saves it to history. */
 export async function captureVisible(store: CaptureStore = new CaptureStore()): Promise<CaptureResult> {
@@ -52,17 +58,17 @@ export function libraryUrl(): string {
   return browser.runtime.getURL('/library.html');
 }
 
-/** Captures the full page as one image using Chrome's debugger protocol. */
+/** Captures the full page by scrolling, overlapping viewports, and stitching them locally. */
 export async function captureFullPage(
   store: CaptureStore = new CaptureStore(),
+  reportProgress: FullPageProgressReporter = () => {},
 ): Promise<CaptureResult> {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab || tab.id === undefined) return { ok: false, error: 'no active tab' };
     if (!isCapturableUrl(tab.url)) return { ok: false, error: 'this page cannot be captured' };
 
-    const dataUrl = await captureViaDebugger(tab.id);
-    const blob = await (await fetch(dataUrl)).blob();
+    const blob = await captureFullPageByScrolling(tab, reportProgress);
     const record = await store.add({
       type: 'screenshot',
       blob,
@@ -84,29 +90,233 @@ export async function captureDelayed(
   return captureVisible(store);
 }
 
-async function captureViaDebugger(tabId: number): Promise<string> {
-  const debuggee = { tabId };
-  await chrome.debugger.attach(debuggee, '1.3');
+type FullPageMetrics = {
+  width: number;
+  height: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  captureViewportWidth: number;
+  captureViewportHeight: number;
+  scrollX: number;
+  scrollY: number;
+  documentScrollX: number;
+  documentScrollY: number;
+  nested: boolean;
+};
+
+/** Read page dimensions and temporarily suppress sticky/fixed UI before taking scroll captures. */
+function prepareFullPageCapture(): FullPageMetrics {
+  const doc = document.documentElement;
+  const win = window as Window & {
+    __kaptureFullPageRestore?: Array<{ element: HTMLElement; visibility: string; priority: string }>;
+    __kaptureFullPageStyle?: HTMLStyleElement;
+    __kaptureFullPageScroller?: HTMLElement | null;
+  };
+  const documentHeight = Math.max(doc.scrollHeight, document.body?.scrollHeight ?? 0);
+  const documentWidth = Math.max(doc.scrollWidth, document.body?.scrollWidth ?? 0);
+  const documentRangeY = Math.max(0, documentHeight - window.innerHeight);
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>('body *'))
+    .map((element) => ({ element, style: getComputedStyle(element), range: element.scrollHeight - element.clientHeight }))
+    .filter(({ element, style, range }) => element.clientHeight > 0 && range > Math.max(100, window.innerHeight * 0.25) && /^(auto|scroll|overlay)$/.test(style.overflowY))
+    .sort((a, b) => b.range - a.range);
+  // A page with an ordinary document scrollbar can also contain a very long
+  // sidebar, code viewer, or chat pane. That inner element is not the page to
+  // capture. Only treat an element as the page scroller when the document has
+  // no vertical range and the element actually fills the viewport.
+  const nestedScroller = documentRangeY <= 1
+    ? candidates.find(({ element }) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width >= window.innerWidth * 0.8 && rect.height >= window.innerHeight * 0.8;
+    })?.element ?? null
+    : null;
+  const scroller = nestedScroller;
+  const protectedAncestors = new Set<Element>();
+  for (let ancestor: Element | null = scroller; ancestor; ancestor = ancestor.parentElement) protectedAncestors.add(ancestor);
+  const restore: Array<{ element: HTMLElement; visibility: string; priority: string }> = [];
+  for (const element of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+    const position = getComputedStyle(element).position;
+    if ((position === 'fixed' || position === 'sticky') && !protectedAncestors.has(element)) {
+      restore.push({ element, visibility: element.style.getPropertyValue('visibility'), priority: element.style.getPropertyPriority('visibility') });
+      element.style.setProperty('visibility', 'hidden', 'important');
+    }
+  }
+  const style = document.createElement('style');
+  style.dataset.kaptureCapture = 'full-page';
+  style.textContent = '*{scroll-behavior:auto!important;scroll-snap-type:none!important}';
+  (document.head ?? doc).append(style);
+  win.__kaptureFullPageRestore = restore;
+  win.__kaptureFullPageStyle = style;
+  win.__kaptureFullPageScroller = scroller;
+  return {
+    width: scroller?.scrollWidth ?? documentWidth,
+    height: scroller?.scrollHeight ?? documentHeight,
+    viewportWidth: scroller?.clientWidth ?? window.innerWidth,
+    viewportHeight: scroller?.clientHeight ?? window.innerHeight,
+    captureViewportWidth: window.innerWidth,
+    captureViewportHeight: window.innerHeight,
+    scrollX: scroller?.scrollLeft ?? window.scrollX,
+    scrollY: scroller?.scrollTop ?? window.scrollY,
+    documentScrollX: window.scrollX,
+    documentScrollY: window.scrollY,
+    nested: !!scroller,
+  };
+}
+
+/** Scroll and wait for layout/paint to settle; return the actual position after browser clamping. */
+async function scrollForFullPageCapture(x: number, y: number, nested: boolean): Promise<{ x: number; y: number; sourceX: number; sourceY: number; sourceWidth: number; sourceHeight: number }> {
+  const win = window as Window & { __kaptureFullPageScroller?: HTMLElement | null };
+  const scroller = nested ? win.__kaptureFullPageScroller : document.scrollingElement;
+  if (!scroller) throw new Error('could not find the page scroll container');
+  const requestedX = Math.min(x, Math.max(0, scroller.scrollWidth - scroller.clientWidth));
+  const requestedY = Math.min(y, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
+  const setPosition = () => {
+    scroller.scrollLeft = requestedX;
+    scroller.scrollTop = requestedY;
+    if (!nested) window.scrollTo(requestedX, requestedY);
+  };
+  const readPosition = () => ({ x: nested ? scroller.scrollLeft : window.scrollX, y: nested ? scroller.scrollTop : window.scrollY });
+  const deadline = performance.now() + 1500;
+  let stableFrames = 0;
+  setPosition();
+  while (performance.now() < deadline && stableFrames < 3) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const position = readPosition();
+    if (Math.abs(position.x - requestedX) <= 1 && Math.abs(position.y - requestedY) <= 1) stableFrames++;
+    else {
+      stableFrames = 0;
+      setPosition();
+    }
+  }
+  if (stableFrames < 3) throw new Error('The page did not reach the requested scroll position. Try again after the page finishes moving.');
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  const rect = nested ? scroller.getBoundingClientRect() : null;
+  return {
+    ...readPosition(),
+    sourceX: rect ? rect.left + scroller.clientLeft : 0,
+    sourceY: rect ? rect.top + scroller.clientTop : 0,
+    sourceWidth: nested ? scroller.clientWidth : window.innerWidth,
+    sourceHeight: nested ? scroller.clientHeight : window.innerHeight,
+  };
+}
+
+/** Restore all page changes made for the capture and return the user to their original scroll position. */
+function restoreFullPageCapture(x: number, y: number, documentX: number, documentY: number): void {
+  const win = window as Window & {
+    __kaptureFullPageRestore?: Array<{ element: HTMLElement; visibility: string; priority: string }>;
+    __kaptureFullPageStyle?: HTMLStyleElement;
+    __kaptureFullPageScroller?: HTMLElement | null;
+  };
+  for (const { element, visibility, priority } of win.__kaptureFullPageRestore ?? []) {
+    if (visibility) element.style.setProperty('visibility', visibility, priority);
+    else element.style.removeProperty('visibility');
+  }
+  win.__kaptureFullPageStyle?.remove();
+  if (win.__kaptureFullPageScroller) {
+    win.__kaptureFullPageScroller.scrollLeft = x;
+    win.__kaptureFullPageScroller.scrollTop = y;
+  }
+  delete win.__kaptureFullPageRestore;
+  delete win.__kaptureFullPageStyle;
+  delete win.__kaptureFullPageScroller;
+  window.scrollTo(documentX, documentY);
+}
+
+function scrollPositions(max: number, viewport: number): number[] {
+  if (max <= 0) return [0];
+  const step = Math.max(1, Math.floor(viewport * 0.8));
+  const positions: number[] = [];
+  for (let position = 0; position < max; position += step) positions.push(position);
+  if (positions[positions.length - 1] !== max) positions.push(max);
+  return positions;
+}
+
+async function captureFullPageByScrolling(tab: Browser.tabs.Tab, reportProgress: FullPageProgressReporter): Promise<Blob> {
+  if (tab.id === undefined || tab.windowId === undefined) throw new Error('no active tab');
+  const target = { tabId: tab.id };
+  await reportProgress({ phase: 'preparing', completed: 0, total: 0 });
+  const [prepared] = await chrome.scripting.executeScript({ target, func: prepareFullPageCapture });
+  const metrics = prepared?.result;
+  if (!metrics) throw new Error('could not read page dimensions');
+  const restore = () => chrome.scripting.executeScript({ target, func: restoreFullPageCapture, args: [metrics.scrollX, metrics.scrollY, metrics.documentScrollX, metrics.documentScrollY] }).catch(() => {});
 
   try {
-    const metrics = (await chrome.debugger.sendCommand(debuggee, 'Page.getLayoutMetrics')) as {
-      contentSize: { width: number; height: number };
-    };
-    const width = Math.ceil(metrics.contentSize.width);
-    const height = Math.ceil(metrics.contentSize.height);
+    const width = Math.ceil(metrics.width);
+    const height = Math.ceil(metrics.height);
     if (!isFullPageCaptureWithinLimits(width, height)) {
       throw new Error('This page is too large for one full-page image. Try a smaller region instead.');
     }
+    const xs = scrollPositions(Math.max(0, width - metrics.viewportWidth), metrics.viewportWidth);
+    const ys = scrollPositions(Math.max(0, height - metrics.viewportHeight), metrics.viewportHeight);
+    const totalTiles = xs.length * ys.length;
+    let completedTiles = 0;
+    await reportProgress({ phase: 'capturing', completed: completedTiles, total: totalTiles });
+    let canvas: OffscreenCanvas | null = null;
+    let context: OffscreenCanvasRenderingContext2D | null = null;
+    let scaleX = 1;
+    let scaleY = 1;
 
-    const shot = (await chrome.debugger.sendCommand(debuggee, 'Page.captureScreenshot', {
-      format: 'png',
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width, height, scale: 1 },
-    })) as { data: string };
+    for (const y of ys) {
+      for (const x of xs) {
+        const [positionResult] = await chrome.scripting.executeScript({ target, func: scrollForFullPageCapture, args: [x, y, metrics.nested] });
+        const position = positionResult?.result;
+        if (!position) throw new Error('could not scroll the page for capture');
 
-    return `data:image/png;base64,${shot.data}`;
+        // Chrome limits captureVisibleTab to two calls per second per extension.
+        if (canvas) await new Promise((resolve) => setTimeout(resolve, 550));
+        await assertCaptureTabIsActive(tab.id, tab.windowId);
+        const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+        await assertCaptureTabIsActive(tab.id, tab.windowId);
+        const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+        if (!canvas) {
+          scaleX = bitmap.width / metrics.captureViewportWidth;
+          scaleY = bitmap.height / metrics.captureViewportHeight;
+          const outputWidth = Math.round(width * scaleX);
+          const outputHeight = Math.round(height * scaleY);
+          if (!isFullPageCaptureWithinLimits(outputWidth, outputHeight)) {
+            bitmap.close();
+            throw new Error('This page is too large at the current display scale. Try a smaller region instead.');
+          }
+          canvas = new OffscreenCanvas(outputWidth, outputHeight);
+          context = canvas.getContext('2d');
+          if (!context) {
+            bitmap.close();
+            throw new Error('could not assemble the full-page image');
+          }
+        }
+        const sourceX = Math.round(position.sourceX * scaleX);
+        const sourceY = Math.round(position.sourceY * scaleY);
+        const sourceWidth = Math.min(Math.round(position.sourceWidth * scaleX), bitmap.width - sourceX);
+        const sourceHeight = Math.min(Math.round(position.sourceHeight * scaleY), bitmap.height - sourceY);
+        context!.drawImage(
+          bitmap,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          Math.round(position.x * scaleX),
+          Math.round(position.y * scaleY),
+          sourceWidth,
+          sourceHeight,
+        );
+        bitmap.close();
+        completedTiles++;
+        await reportProgress({ phase: 'capturing', completed: completedTiles, total: totalTiles });
+      }
+    }
+
+    if (!canvas) throw new Error('could not capture the page');
+    await reportProgress({ phase: 'saving', completed: totalTiles, total: totalTiles });
+    return await canvas.convertToBlob({ type: 'image/png' });
   } finally {
-    await chrome.debugger.detach(debuggee);
+    await restore();
+  }
+}
+
+/** captureVisibleTab captures the active tab in a window, not an arbitrary tabId. */
+async function assertCaptureTabIsActive(tabId: number, windowId: number): Promise<void> {
+  const [activeTab] = await browser.tabs.query({ active: true, windowId });
+  if (activeTab?.id !== tabId) {
+    throw new Error('The page changed tabs during full-page capture. Return to the page and try again.');
   }
 }
 

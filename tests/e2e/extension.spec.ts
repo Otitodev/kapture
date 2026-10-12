@@ -68,6 +68,7 @@ test('release manifest has no persistent access to every website', async () => {
   };
   expect(manifest.permissions).not.toContain('downloads');
   expect(manifest.permissions).not.toContain('tabs');
+  expect(manifest.permissions).not.toContain('debugger');
   expect(manifest.host_permissions ?? []).toEqual([]);
   expect(manifest.content_scripts ?? []).toEqual([]);
 });
@@ -129,6 +130,52 @@ test('popup renders the capture modes and the privacy footer', async () => {
   await expect(page.getByText('stays on this device')).toBeVisible();
 });
 
+test('popup shows full-page capture progress while capturing', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>
+    html,body{margin:0;padding:0}
+    section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}
+  </style>
+  <section style="background:#e53935">top</section>
+  <section style="background:#43a047">upper middle</section>
+  <section style="background:#1e88e5">lower middle</section>
+  <section style="background:#fdd835">bottom</section>`);
+  // Fire and forget: the sendMessage promise only resolves when the whole
+  // capture finishes, so assert the live progress UI while tiles are capturing.
+  const capturePromise = popup.evaluate(() =>
+    chrome.runtime.sendMessage({ kapture: true, type: 'capture:fullpage', target: 'background', payload: {} }),
+  );
+  await expect(popup.getByTestId('fullpage-progress')).toBeVisible();
+  await expect(popup.getByTestId('fullpage-progress-label')).toContainText(/capturing \d+ of \d+ sections/);
+  await expect(popup.getByRole('progressbar', { name: 'full-page capture progress' })).toBeVisible();
+  expect(await capturePromise).toMatchObject({ ok: true });
+  const ed = await waitForEditorPage();
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+});
+
+test('popup surfaces a shortcut failure noticed while it was closed', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  // A stale failure is discarded silently.
+  await page.evaluate(() =>
+    chrome.storage.session.set({ 'kapture.last-error.v1': { message: 'stale failure', at: Date.now() - 10 * 60 * 1000 } }),
+  );
+  await page.reload();
+  await expect(page.getByTestId('popup')).toBeVisible();
+  await expect(page.getByTestId('notice')).toHaveCount(0);
+
+  // A fresh failure shows as a notice, clears the toolbar badge, and is consumed.
+  await page.evaluate(async () => {
+    await chrome.action.setBadgeText({ text: '!' });
+    await chrome.storage.session.set({ 'kapture.last-error.v1': { message: 'shortcut failure for test', at: Date.now() } });
+  });
+  await page.reload();
+  await expect(page.getByTestId('notice')).toContainText('shortcut failure for test');
+  expect(await page.evaluate(() => chrome.action.getBadgeText({}))).toBe('');
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.getByTestId('notice')).toHaveCount(0);
+});
+
 test('popup warns and disables capture on pages chrome cannot capture', async () => {
   // Opened as a tab, the popup's own chrome-extension:// url counts as restricted.
   const page = await context.newPage();
@@ -183,6 +230,7 @@ test('editor renders a saved capture, with copy and download', async () => {
   });
   await page.goto(`chrome-extension://${extensionId}/editor.html?id=${id}`);
   await expect(page.getByTestId('capture-image')).toBeVisible();
+  await expect(page.getByTestId('editor-history')).toHaveAttribute('href', /library\.html$/);
   await expect(page.getByText(/acme\.com-\d{4}-\d{2}-\d{2}/).first()).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download').click()]);
   expect(download.suggestedFilename()).toMatch(/^acme\.com-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.png$/);
@@ -482,12 +530,130 @@ async function activeFakePage(): Promise<{ web: Page; popup: Page }> {
 }
 
 test('full-page capture saves and opens the editor', async () => {
-  const { popup } = await activeFakePage();
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>
+    html,body{margin:0;padding:0}
+    section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}
+  </style>
+  <section style="background:#e53935">top</section>
+  <section style="background:#43a047">upper middle</section>
+  <section style="background:#1e88e5">lower middle</section>
+  <section style="background:#fdd835">bottom</section>`);
+  await web.evaluate(() => window.scrollTo(0, 900));
+  await expect.poll(() => web.evaluate(() => window.scrollY)).toBe(900);
   await popup.evaluate(() =>
     chrome.runtime.sendMessage({ kapture: true, type: 'capture:fullpage', target: 'background', payload: {} }),
   );
   const ed = await waitForEditorPage();
   await expect(ed.getByTestId('capture-image')).toBeVisible();
+  const previewPosition = await ed.getByTestId('capture-image').evaluate((image) => {
+    const viewport = image.closest('main');
+    if (!viewport) throw new Error('capture preview viewport not found');
+    const imageRect = image.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    return {
+      imageTop: imageRect.top,
+      viewportTop: viewportRect.top,
+      scrollTop: viewport.scrollTop,
+    };
+  });
+  expect(previewPosition.scrollTop).toBe(0);
+  expect(previewPosition.imageTop).toBeGreaterThanOrEqual(previewPosition.viewportTop);
+  const samples = await ed.getByTestId('capture-image').evaluate((image) => {
+    const img = image as HTMLImageElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    return {
+      height: img.naturalHeight,
+      colors: [0.125, 0.375, 0.625, 0.875].map((fraction) => {
+        const pixel = ctx.getImageData(Math.floor(img.naturalWidth / 2), Math.floor(img.naturalHeight * fraction), 1, 1).data;
+        return [pixel[0], pixel[1], pixel[2]];
+      }),
+    };
+  });
+  const imageRatio = await ed.getByTestId('capture-image').evaluate((image) => {
+    const img = image as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    return { natural: img.naturalWidth / img.naturalHeight, rendered: rect.width / rect.height };
+  });
+  await expect.poll(() => web.evaluate(() => window.scrollY)).toBe(900);
+  expect(samples.height).toBeGreaterThan(2000);
+  expect(imageRatio.rendered).toBeCloseTo(imageRatio.natural, 3);
+  expect(samples.colors[0]![0]).toBeGreaterThan(180); // red top
+  expect(samples.colors[1]![1]).toBeGreaterThan(100); // green upper middle
+  expect(samples.colors[2]![2]).toBeGreaterThan(150); // blue lower middle
+  expect(samples.colors[3]![0]).toBeGreaterThan(180); // yellow bottom
+});
+
+test('full-page capture starts at the top of a nested scroll panel', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden}
+    #page-scroll{width:100vw;height:100vh;overflow-y:auto}
+    section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}
+  </style>
+  <main id="page-scroll">
+    <section style="background:#e53935">top</section>
+    <section style="background:#43a047">upper middle</section>
+    <section style="background:#1e88e5">lower middle</section>
+    <section style="background:#fdd835">bottom</section>
+  </main>`);
+  await web.locator('#page-scroll').evaluate((element) => { element.scrollTop = 900; });
+  await expect.poll(() => web.locator('#page-scroll').evaluate((element) => element.scrollTop)).toBe(900);
+
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({ kapture: true, type: 'capture:fullpage', target: 'background', payload: {} }),
+  );
+  const ed = await waitForEditorPage();
+  const topColor = await ed.getByTestId('capture-image').evaluate((image) => {
+    const img = image as HTMLImageElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    return Array.from(ctx.getImageData(Math.floor(img.naturalWidth / 2), 100, 1, 1).data).slice(0, 3);
+  });
+  expect(topColor[0]!).toBeGreaterThan(180); // the screenshot begins with the actual red top section
+  await expect.poll(() => web.locator('#page-scroll').evaluate((element) => element.scrollTop)).toBe(900);
+});
+
+test('full-page capture uses the document when a page also has a longer inner scroller', async () => {
+  const { web, popup } = await activeFakePage();
+  await web.setContent(`<!doctype html><style>
+    html,body{margin:0;padding:0}
+    section{height:600px;display:flex;align-items:flex-start;padding:24px;box-sizing:border-box;font:32px sans-serif}
+    #deep-panel{position:fixed;right:0;top:0;width:120px;height:100vh;overflow-y:auto;background:#111;color:#fff}
+    #deep-panel > div{height:5400px}
+  </style>
+  <section style="background:#e53935">top</section>
+  <section style="background:#43a047">upper middle</section>
+  <section style="background:#1e88e5">lower middle</section>
+  <section style="background:#fdd835">bottom</section>
+  <aside id="deep-panel"><div>long side panel</div></aside>`);
+  await web.evaluate(() => window.scrollTo(0, 900));
+  await web.locator('#deep-panel').evaluate((element) => { element.scrollTop = 2200; });
+  await expect.poll(() => web.evaluate(() => window.scrollY)).toBe(900);
+
+  await popup.evaluate(() =>
+    chrome.runtime.sendMessage({ kapture: true, type: 'capture:fullpage', target: 'background', payload: {} }),
+  );
+  const ed = await waitForEditorPage();
+  const topColor = await ed.getByTestId('capture-image').evaluate((image) => {
+    const img = image as HTMLImageElement;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    return Array.from(ctx.getImageData(Math.floor(img.naturalWidth / 2), 100, 1, 1).data).slice(0, 3);
+  });
+  expect(topColor[0]!).toBeGreaterThan(180); // document's red top section, not the inner panel
+  await expect.poll(() => web.evaluate(() => window.scrollY)).toBe(900);
+  await expect.poll(() => web.locator('#deep-panel').evaluate((element) => element.scrollTop)).toBe(2200);
 });
 
 test('delayed capture saves and opens the editor', async () => {
@@ -508,16 +674,25 @@ test('a saved recording plays in the editor and lists in the library', async () 
     const canvas = document.createElement('canvas');
     canvas.width = 320;
     canvas.height = 180;
+    // The canvas must be in the document and explicitly produce frames:
+    // headless Chromium does not reliably encode a detached canvas stream.
+    canvas.style.cssText = 'position:fixed;left:0;top:0;width:160px;height:90px;opacity:0.01;pointer-events:none';
+    document.body.append(canvas);
     const ctx = canvas.getContext('2d')!;
+    const stream = canvas.captureStream(30);
+    const videoTrack = stream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void });
     let x = 0;
-    const timer = window.setInterval(() => {
+    const draw = () => {
       x = (x + 12) % 280;
       ctx.fillStyle = '#181818';
       ctx.fillRect(0, 0, 320, 180);
       ctx.fillStyle = '#3b82f6';
       ctx.fillRect(x, 40, 40, 40);
-    }, 50);
-    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: 'video/webm' });
+      videoTrack?.requestFrame?.();
+    };
+    draw();
+    const timer = window.setInterval(draw, 50);
+    const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
     const parts: Blob[] = [];
     rec.ondataavailable = (e) => {
       if (e.data.size > 0) parts.push(e.data);
@@ -530,6 +705,7 @@ test('a saved recording plays in the editor and lists in the library', async () 
     rec.stop();
     await done;
     window.clearInterval(timer);
+    canvas.remove();
     const blob = new Blob(parts, { type: rec.mimeType || 'video/webm' });
     const open = indexedDB.open('kapture', 2);
     const db: IDBDatabase = await new Promise((res2, rej) => {
