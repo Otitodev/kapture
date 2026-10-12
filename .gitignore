@@ -10,3 +10,7 @@ playwright-report
 .env
 .env.*
 !.env.example
+# Local-only working files: never publish these.
+AGENT_READY_EVIDENCE_PLAN.md
+CHROMEWEBSTORE.md
+/publication/
