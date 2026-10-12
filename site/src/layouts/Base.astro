@@ -7,12 +7,36 @@ interface Props {
   description: string;
   image?: string;
   noindex?: boolean;
-  structuredData?: Record<string, unknown>;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
+  imageAlt?: string;
+  breadcrumbs?: { name: string; path: string }[];
 }
 
-const { title, description, image = '/og-image-1200x630.png', noindex = false, structuredData } = Astro.props;
+const {
+  title,
+  description,
+  image = '/og-image-1200x630.png',
+  imageAlt = 'Kapture screenshot and screen recording extension',
+  noindex = false,
+  structuredData,
+  breadcrumbs,
+} = Astro.props;
 const canonical = new URL(Astro.url.pathname, SITE_URL).toString();
 const ogImage = new URL(image, SITE_URL).toString();
+const breadcrumbList = breadcrumbs && {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: breadcrumbs.map((crumb, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: crumb.name,
+    item: new URL(crumb.path, SITE_URL).toString(),
+  })),
+};
+const jsonLd = [
+  ...(Array.isArray(structuredData) ? structuredData : structuredData ? [structuredData] : []),
+  ...(breadcrumbList ? [breadcrumbList] : []),
+];
 ---
 
 <!doctype html>
@@ -33,13 +57,13 @@ const ogImage = new URL(image, SITE_URL).toString();
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
-    <meta property="og:image:alt" content="Kapture screenshot and screen recording extension" />
+    <meta property="og:image:alt" content={imageAlt} />
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
-    {structuredData && <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />}
+    {jsonLd.map((data) => <script type="application/ld+json" set:html={JSON.stringify(data)} />)}
   </head>
   <body>
     <a href="#main-content" class="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:not-sr-only focus:rounded-md focus:bg-fg focus:px-4 focus:py-3 focus:text-bg">Skip to main content</a>
