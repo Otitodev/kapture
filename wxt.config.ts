@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'Kapture',
     description: 'Free local-first screenshots and screen recording. Captures stay on your device until you choose to export.',
-    permissions: ['activeTab', 'scripting', 'storage', 'offscreen', 'unlimitedStorage', 'debugger', 'tabCapture'],
+    permissions: ['activeTab', 'scripting', 'storage', 'offscreen', 'unlimitedStorage', 'tabCapture'],
     action: {
       default_title: 'Kapture',
       default_icon: {

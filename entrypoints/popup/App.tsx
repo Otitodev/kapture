@@ -2,11 +2,25 @@ import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { Icon } from '@/components/ui/Icon';
 import { MenuRow } from '@/components/ui/MenuRow';
-import { isCapturableUrl, libraryUrl } from '@/lib/capture';
+import { isCapturableUrl, libraryUrl, type FullPageCaptureProgress } from '@/lib/capture';
 import { getMicEnabled, setMicEnabled } from '@/lib/recording';
-import { sendMessage } from '@/lib/messages';
+import { onMessage, sendMessage } from '@/lib/messages';
 import { acceptCaptureDisclosure, hasCaptureDisclosureConsent } from '@/lib/privacy';
+import { clearFailureBadge, takeLastError } from '@/lib/lastError';
 import { formatShortcut } from '@/lib/shortcuts';
+
+function fullPageProgressPercent(progress: FullPageCaptureProgress): number {
+  if (progress.phase === 'preparing') return 6;
+  if (progress.phase === 'saving') return 100;
+  if (progress.total === 0) return 0;
+  return Math.round((progress.completed / progress.total) * 100);
+}
+
+function fullPageProgressLabel(progress: FullPageCaptureProgress): string {
+  if (progress.phase === 'preparing') return 'preparing page';
+  if (progress.phase === 'saving') return 'saving image';
+  return `capturing ${progress.completed} of ${progress.total} sections`;
+}
 
 export function App() {
   const [capturable, setCapturable] = useState(true);
@@ -14,14 +28,33 @@ export function App() {
   const [recording, setRecording] = useState(false);
   const [mic, setMic] = useState(false);
   const [captureDisclosureAccepted, setCaptureDisclosureAccepted] = useState<boolean | null>(null);
+  const [fullPageProgress, setFullPageProgress] = useState<FullPageCaptureProgress | null>(null);
   const returnTabId = new URLSearchParams(location.search).get('returnTabId');
+
+  useEffect(
+    () =>
+      onMessage('popup', {
+        'capture:progress': (progress) => {
+          setFullPageProgress(progress);
+          return { ok: true };
+        },
+      }),
+    [],
+  );
 
   useEffect(() => {
     hasCaptureDisclosureConsent().then(setCaptureDisclosureAccepted).catch(() => setCaptureDisclosureAccepted(false));
+    clearFailureBadge().catch(() => {});
   }, []);
 
   useEffect(() => {
     if (captureDisclosureAccepted !== true) return;
+    // A keyboard shortcut may have failed while no popup was open to show it.
+    takeLastError()
+      .then((message) => {
+        if (message) setNotice(message);
+      })
+      .catch(() => {});
     browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
       setCapturable(isCapturableUrl(tab?.url));
     });
@@ -77,9 +110,18 @@ export function App() {
 
   async function captureFullPage() {
     setNotice(null);
-    const result = await sendMessage('capture:fullpage', {});
-    if (result.ok) window.close();
-    else setNotice(result.error);
+    setFullPageProgress({ phase: 'preparing', completed: 0, total: 0 });
+    try {
+      const result = await sendMessage('capture:fullpage', {});
+      if (result.ok) window.setTimeout(() => window.close(), 450);
+      else {
+        setFullPageProgress(null);
+        setNotice(result.error);
+      }
+    } catch (err) {
+      setFullPageProgress(null);
+      setNotice(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function captureElement() {
@@ -126,6 +168,7 @@ export function App() {
   }
 
   const soon = () => setNotice('this mode arrives in the next build');
+  const captureBusy = fullPageProgress !== null;
 
   if (captureDisclosureAccepted === null) {
     return <main className="w-[340px] bg-surface px-4 py-6 text-[13px] text-muted">loading…</main>;
@@ -180,29 +223,51 @@ export function App() {
         </p>
       )}
 
+      {fullPageProgress && (
+        <section className="mx-4 my-2 rounded-md border border-rule bg-bg px-3 py-3" aria-live="polite" data-testid="fullpage-progress">
+          <div className="flex items-center justify-between gap-3 text-[13px] font-medium text-fg">
+            <span>capturing full page</span>
+            <span className="font-mono text-[12px] text-muted">{fullPageProgressPercent(fullPageProgress)}%</span>
+          </div>
+          <p className="mt-1 text-[12px] leading-4 text-muted" data-testid="fullpage-progress-label">{fullPageProgressLabel(fullPageProgress)}</p>
+          <div
+            className="mt-3 h-1 overflow-hidden rounded-full bg-raised"
+            role="progressbar"
+            aria-label="full-page capture progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={fullPageProgressPercent(fullPageProgress)}
+          >
+            <div className="h-full bg-fg transition-[width] duration-200" style={{ width: `${fullPageProgressPercent(fullPageProgress)}%` }} />
+          </div>
+        </section>
+      )}
+
+      {!fullPageProgress && (
       <section className="flex flex-col gap-0.5 px-2 py-1">
         <MenuRow icon={<Icon name="visible" />} label="visible area" hint={formatShortcut('mod+shift+1')} disabled={!capturable} onClick={captureVisible} data-testid="capture-visible" />
         <MenuRow icon={<Icon name="region" />} label="selected region" hint={formatShortcut('mod+shift+2')} disabled={!capturable} onClick={captureRegion} data-testid="capture-region" />
-        <MenuRow icon={<Icon name="fullpage" />} label="full page" hint={formatShortcut('mod+shift+3')} disabled={!capturable} onClick={captureFullPage} />
+        <MenuRow icon={<Icon name="fullpage" />} label="full page" hint={formatShortcut('mod+shift+3')} disabled={!capturable} onClick={captureFullPage} data-testid="capture-fullpage" />
         <MenuRow icon={<Icon name="element" />} label="single element" disabled={!capturable} onClick={captureElement} />
         <MenuRow icon={<Icon name="delay" />} label="after a delay" hint={<span className="font-sans text-[13px]">3s ▾</span>} disabled={!capturable} onClick={() => captureDelayed(3000)} />
       </section>
+      )}
 
       <section className="mt-1 flex flex-col gap-0.5 border-t border-rule p-2">
         <MenuRow
           icon={<span className="size-2.5 rounded-full bg-record" />}
           label={recording ? 'stop recording' : 'record this tab'}
           hint={recording ? undefined : formatShortcut('mod+shift+5')}
-          disabled={!capturable && !recording}
+          disabled={captureBusy || (!capturable && !recording)}
           onClick={toggleRecording}
         />
-        <MenuRow icon={<Icon name="screen" />} label="record screen or window" disabled={recording} onClick={startScreenRecording} />
+        <MenuRow icon={<Icon name="screen" />} label="record screen or window" disabled={captureBusy || recording} onClick={startScreenRecording} />
         <button
           type="button"
           role="switch"
           aria-checked={mic}
           aria-label="microphone"
-          disabled={recording}
+          disabled={captureBusy || recording}
           onClick={toggleMic}
           className="flex h-10 w-full cursor-pointer items-center gap-3 rounded-sm px-2 text-left text-fg hover:bg-raised focus-visible:bg-raised disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
         >
