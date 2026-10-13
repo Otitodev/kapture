@@ -40,8 +40,8 @@ const TOOLS: { name: Tool; icon: string; label: string }[] = [
   { name: 'select', icon: 'select', label: 'select' },
   { name: 'arrow', icon: 'arrow', label: 'arrow' },
   { name: 'box', icon: 'box', label: 'box' },
-  { name: 'ellipse', icon: 'box', label: 'ellipse' },
-  { name: 'line', icon: 'arrow', label: 'line' },
+  { name: 'ellipse', icon: 'ellipse', label: 'ellipse' },
+  { name: 'line', icon: 'line', label: 'line' },
   { name: 'pen', icon: 'pen', label: 'pen' },
   { name: 'text', icon: 'text', label: 'text' },
   { name: 'blur', icon: 'blur', label: 'blur' },
@@ -119,7 +119,9 @@ export function App() {
 
   function updateStyle(patch: Partial<StyleOptions>) {
     const next = { ...styleOpts, ...patch };
+    // Show the styled result at full size as soon as styling is turned on or changed.
     if (patch.enabled === false) setPreviewStyled(false);
+    else setPreviewStyled(true);
     setStyleOpts(next);
     void setStylePref(next);
   }
@@ -311,12 +313,9 @@ export function App() {
         break;
       case 'blur':
         if (img) {
-          ctx.clip();
-          const ox = a.x;
-          const oy = a.y;
           ctx.save();
           ctx.beginPath();
-          ctx.rect(ox, oy, a.w, a.h);
+          ctx.rect(a.x, a.y, a.w, a.h);
           ctx.clip();
           try {
             ctx.filter = `blur(${a.radius}px)`;
@@ -679,7 +678,10 @@ export function App() {
               key={t.name}
               aria-label={t.label}
               title={t.label}
-              onClick={() => setTool(t.name)}
+              onClick={() => {
+                setTool(t.name);
+                setPreviewStyled(false); // picking a tool goes back to editing
+              }}
               className={`rounded-md p-2 ${tool === t.name ? 'bg-raised text-fg' : 'text-muted hover:text-fg'}`}
             >
               <Icon name={t.icon as never} size={18} />

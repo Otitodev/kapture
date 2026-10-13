@@ -4,6 +4,8 @@ import type { SVGProps } from 'react';
 const PATHS = {
   select: <path d="M5 3l14 8-6 2-2 6z" />,
   arrow: <path d="M5 19L19 5M9 5h10v10" />,
+  ellipse: <ellipse cx="12" cy="12" rx="8.5" ry="6" />,
+  line: <path d="M5 19L19 5" />,
   box: <rect x="4" y="5" width="16" height="14" rx="2" />,
   pen: <path d="M4 20l1-4L16 5l3 3L8 19z" />,
   text: <path d="M5 6V4h14v2M12 4v16M9 20h6" />,
