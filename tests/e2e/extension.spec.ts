@@ -298,15 +298,20 @@ test('editor: style option frames copy and download but never the saved capture'
   [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
   expect(pngSize((await download.path())!)).toEqual({ width: 464, height: 392 });
 
-  // "Preview styled" swaps the editing view for a full-size styled preview, and back again.
-  await ed.getByTestId('style-preview-toggle').click();
+  // Picking a backdrop shows the styled result at full size straight away, in place of the editing view.
   await expect(ed.getByTestId('style-preview-large')).toBeVisible();
   await expect(ed.getByTestId('capture-image')).toBeHidden();
   await expect(ed.getByTestId('annotate-canvas')).toBeHidden();
   await expect.poll(() => ed.getByTestId('style-preview-large').evaluate((c) => `${(c as HTMLCanvasElement).width}x${(c as HTMLCanvasElement).height}`)).toBe('464x392');
+  // The toggle goes back to editing, and a tool pick does the same.
   await ed.getByTestId('style-preview-toggle').click();
   await expect(ed.getByTestId('style-preview-large')).toHaveCount(0);
   await expect(ed.getByTestId('capture-image')).toBeVisible();
+  await ed.getByTestId('style-preview-toggle').click();
+  await expect(ed.getByTestId('style-preview-large')).toBeVisible();
+  await ed.getByRole('button', { name: 'arrow' }).click();
+  await expect(ed.getByTestId('style-preview-large')).toHaveCount(0);
+  await expect(ed.getByTestId('annotate-canvas')).toBeVisible();
 
   // Turning the frame off drops the title bar.
   await ed.getByTestId('style-frame').uncheck();
@@ -324,6 +329,77 @@ test('editor: style option frames copy and download but never the saved capture'
   await expect(ed.getByTestId('style-enabled')).toBeChecked();
   await expect(ed.getByTestId('style-backdrop-paper')).toHaveAttribute('aria-checked', 'true');
   await expect(ed.getByTestId('style-frame')).not.toBeChecked();
+});
+
+test('editor: image backdrops are painted behind the exported capture', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/library.html`); // opens the database so its stores exist
+  await page.evaluate(() => chrome.storage.local.remove('kapture.style.v1'));
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 400, 300);
+    const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/png'));
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res, rej) => {
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put({ id: 'e2e-backdrops', type: 'screenshot', blob, url: 'https://www.acme.com/', title: 'acme', createdAt: Date.now(), tags: [] });
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+  const ed = await context.newPage();
+  await ed.goto(`chrome-extension://${extensionId}/editor.html?id=e2e-backdrops`);
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+  await ed.getByTestId('style-enabled').check();
+
+  // Reads the top-left pixel of a downloaded export: that corner is backdrop, outside the window.
+  const cornerOf = async (file: string) => {
+    const base64 = fs.readFileSync(file).toString('base64');
+    return ed.evaluate(async (data) => {
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      const px = ctx.getImageData(4, 4, 1, 1).data;
+      const bottom = ctx.getImageData(4, bitmap.height - 4, 1, 1).data;
+      return { width: bitmap.width, height: bitmap.height, r: px[0]!, g: px[1]!, b: px[2]!, bottom: [bottom[0]!, bottom[1]!, bottom[2]!] };
+    }, base64);
+  };
+  const exportWith = async (backdrop: string) => {
+    await ed.getByTestId(`style-backdrop-${backdrop}`).click();
+    await expect(ed.getByTestId(`style-backdrop-${backdrop}`)).toHaveAttribute('aria-checked', 'true');
+    const [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
+    return cornerOf((await download.path())!);
+  };
+
+  const dusk = await exportWith('neon-dusk'); // near-black asphalt
+  expect(dusk.width).toBe(464); // padding and frame sizes do not depend on the backdrop
+  expect(dusk.r).toBeLessThan(110);
+  expect(dusk.b).toBeLessThan(140);
+  const cobalt = await exportWith('cobalt'); // white page
+  expect(cobalt.r).toBeGreaterThan(235);
+  expect(cobalt.g).toBeGreaterThan(235);
+  // Signal's chrome-yellow strip runs along its bottom edge. Only the real image has it: the
+  // fallback colour is near-black, so this fails if the image did not load.
+  const signal = await exportWith('signal');
+  expect(signal.bottom[0]).toBeGreaterThan(230);
+  expect(signal.bottom[1]).toBeGreaterThan(180);
+  expect(signal.bottom[2]).toBeLessThan(80);
+  const mist = await exportWith('art-mist'); // Monet's lavender mist
+  expect(mist.b).toBeGreaterThan(mist.r + 10);
+  expect(mist.r).toBeGreaterThan(110);
 });
 
 test('editor: can annotate, undo, and see the layer count', async () => {
@@ -1087,4 +1163,65 @@ test('element: clicking an element captures it and opens the editor', async () =
 
   const ed = await waitForEditorPage();
   await expect(ed.getByTestId('capture-image')).toBeVisible();
+});
+
+test('editor: the blur tool blurs the dragged area on the first drag, however large', async () => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  await page.goto(`chrome-extension://${extensionId}/editor.html?id=seed`);
+  // 1200x700 image of 1px black/white stripes: any blur turns the stripes grey.
+  await page.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 1200;
+    c.height = 700;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 1200, 700);
+    ctx.fillStyle = '#000';
+    for (let x = 0; x < 1200; x += 2) ctx.fillRect(x, 0, 1, 700);
+    const png = await new Promise<Blob>((res) => c.toBlob((b) => res(b as Blob), 'image/png'));
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res, rej) => {
+      open.onupgradeneeded = () => {
+        const s = open.result.createObjectStore('captures', { keyPath: 'id' });
+        s.createIndex('by-createdAt', 'createdAt');
+        s.createIndex('by-type', 'type');
+        const ch = open.result.createObjectStore('chunks');
+        ch.createIndex('by-session', 'session');
+      };
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put({ id: 'e2e-blur', type: 'screenshot', blob: png, url: 'https://example.com', title: 'blur', createdAt: Date.now(), tags: [] });
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+  await page.goto(`chrome-extension://${extensionId}/editor.html?id=e2e-blur`);
+  await expect(page.getByTestId('annotate-canvas')).toBeVisible();
+
+  await page.getByRole('button', { name: 'blur' }).click();
+  const box = (await page.getByTestId('annotate-canvas').boundingBox())!;
+  await page.mouse.move(box.x + 100, box.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 1000, box.y + 600, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByText('1 layer')).toBeVisible();
+
+  // Inside the 900x500 area the overlay now shows blurred (grey) stripes, right up to its far corner.
+  const grey = await page.getByTestId('annotate-canvas').evaluate((el) => {
+    const canvas = el as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const sample = (x: number, y: number) => Array.from(ctx.getImageData(x, y, 2, 1).data);
+    return { size: [canvas.width, canvas.height], near: sample(300, 300), far: sample(960, 560) };
+  });
+  expect(grey.size).toEqual([1200, 700]);
+  for (const px of [grey.near, grey.far]) {
+    expect(px[3]).toBe(255);
+    expect(px[0]).toBeGreaterThan(60);
+    expect(px[0]).toBeLessThan(200);
+  }
 });

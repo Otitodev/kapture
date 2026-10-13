@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('wxt/browser', () => ({ browser: {} }));
 
 import { MAX_FULL_PAGE_DIMENSION, MAX_FULL_PAGE_PIXELS } from '../../lib/capture';
-import { BACKDROPS, DEFAULT_STYLE, frameTitle, normalizeStyle, styleLayout } from '../../lib/style';
+import fs from 'node:fs';
+import path from 'node:path';
+import { BACKDROPS, BACKDROP_GROUPS, DEFAULT_STYLE, frameTitle, normalizeStyle, styleLayout } from '../../lib/style';
 
 describe('normalizeStyle', () => {
   it('returns the defaults for missing or junk input', () => {
@@ -90,5 +92,41 @@ describe('frameTitle', () => {
   it('falls back to the capture title when there is no usable URL', () => {
     expect(frameTitle('', '  Screen recording ')).toBe('Screen recording');
     expect(frameTitle('not a url', 'Notes')).toBe('Notes');
+  });
+});
+
+describe('bundled backdrops', () => {
+  const publicDir = path.resolve(__dirname, '../../public');
+  const images = BACKDROPS.filter((preset) => preset.kind === 'image');
+
+  it('has unique ids and labels, and every preset sits in a listed group', () => {
+    expect(new Set(BACKDROPS.map((preset) => preset.id)).size).toBe(BACKDROPS.length);
+    const groups = new Set(BACKDROP_GROUPS.map((group) => group.id));
+    for (const preset of BACKDROPS) {
+      expect(preset.label.trim()).not.toBe('');
+      expect(groups.has(preset.group)).toBe(true);
+    }
+    for (const group of BACKDROP_GROUPS) expect(BACKDROPS.some((preset) => preset.group === group.id)).toBe(true);
+  });
+
+  it('points every image backdrop at a file that ships in public/backdrops', () => {
+    expect(images.length).toBeGreaterThanOrEqual(19);
+    for (const preset of images) {
+      expect(preset.src).toMatch(/^\/backdrops\/[a-z0-9-]+\.webp$/);
+      expect(fs.existsSync(path.join(publicDir, preset.src!)), preset.id).toBe(true);
+      expect(preset.colors[0]).toMatch(/^#[0-9a-f]{6}$/i); // fallback colour if the image cannot load
+    }
+  });
+
+  it('credits every artwork and keeps the bundled images within the size budget', () => {
+    for (const preset of images.filter((p) => p.group === 'artworks')) expect(preset.credit).toMatch(/Art Institute of Chicago/);
+    const bytes = images.reduce((sum, preset) => sum + fs.statSync(path.join(publicDir, preset.src!)).size, 0);
+    expect(bytes).toBeLessThan(1.2 * 1024 * 1024);
+  });
+
+  it('keeps stored choices of the new backdrops', () => {
+    expect(normalizeStyle({ backdrop: 'neon-dusk' }).backdrop).toBe('neon-dusk');
+    expect(normalizeStyle({ backdrop: 'art-mist' }).backdrop).toBe('art-mist');
+    expect(normalizeStyle({ backdrop: 'art-removed' }).backdrop).toBe(DEFAULT_STYLE.backdrop);
   });
 });

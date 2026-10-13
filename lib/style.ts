@@ -2,23 +2,78 @@ import { browser } from 'wxt/browser';
 import { MAX_FULL_PAGE_DIMENSION, MAX_FULL_PAGE_PIXELS } from './capture';
 
 export type FrameKind = 'none' | 'window';
-type BackdropKind = 'solid' | 'gradient' | 'noise';
+type BackdropKind = 'solid' | 'gradient' | 'noise' | 'image';
+export type BackdropGroup = 'classic' | 'designs' | 'artworks';
 
 export interface BackdropPreset {
   id: string;
   label: string;
+  group: BackdropGroup;
   kind: BackdropKind;
-  /** One colour for solid; two for gradient and noise (diagonal blend). */
+  /**
+   * One colour for solid; two for gradient and noise (diagonal blend). For images this is the
+   * swatch colour and what is painted if the image cannot be loaded.
+   */
   colors: [string] | [string, string];
   /** Dark backdrops get a dark window frame, light ones a light frame. */
   dark: boolean;
+  /** Bundled image under `public/backdrops/`, for `kind: 'image'`. */
+  src?: string;
+  /** Shown on hover; used for the artworks' attribution. */
+  credit?: string;
 }
 
+const design = (id: string, label: string, color: string, dark: boolean): BackdropPreset => ({
+  id,
+  label,
+  group: 'designs',
+  kind: 'image',
+  colors: [color],
+  dark,
+  src: `/backdrops/${id}.webp`,
+});
+
+const artwork = (id: string, label: string, color: string, dark: boolean, credit: string): BackdropPreset => ({
+  id: `art-${id}`,
+  label,
+  group: 'artworks',
+  kind: 'image',
+  colors: [color],
+  dark,
+  src: `/backdrops/art-${id}.webp`,
+  credit: `${credit}. Art Institute of Chicago, public domain`,
+});
+
 export const BACKDROPS: BackdropPreset[] = [
-  { id: 'graphite', label: 'graphite', kind: 'noise', colors: ['#0b0b0b', '#1c1c1c'], dark: true },
-  { id: 'dusk', label: 'dusk', kind: 'gradient', colors: ['#2a2f6b', '#c4587a'], dark: true },
-  { id: 'lagoon', label: 'lagoon', kind: 'gradient', colors: ['#0e5f66', '#5bb8d4'], dark: true },
-  { id: 'paper', label: 'paper', kind: 'solid', colors: ['#e9e9e2'], dark: false },
+  { id: 'graphite', label: 'graphite', group: 'classic', kind: 'noise', colors: ['#0b0b0b', '#1c1c1c'], dark: true },
+  { id: 'dusk', label: 'dusk', group: 'classic', kind: 'gradient', colors: ['#2a2f6b', '#c4587a'], dark: true },
+  { id: 'lagoon', label: 'lagoon', group: 'classic', kind: 'gradient', colors: ['#0e5f66', '#5bb8d4'], dark: true },
+  { id: 'paper', label: 'paper', group: 'classic', kind: 'solid', colors: ['#e9e9e2'], dark: false },
+  design('tidepool', 'tidepool', '#3b587a', true),
+  design('ember', 'ember', '#2a1c14', true),
+  design('orchid', 'orchid', '#4a3a78', true),
+  design('meadow', 'meadow', '#9db384', false),
+  design('dune', 'dune', '#e0a879', false),
+  design('glacier', 'glacier', '#c9dce8', false),
+  design('neon-dusk', 'neon dusk', '#3a1730', true),
+  design('signal', 'signal', '#1a180c', true),
+  design('topo', 'topo', '#e6e4d6', false),
+  design('cobalt', 'cobalt', '#ffffff', false),
+  artwork('mist', 'seine mist', '#a89cc8', false, 'Branch of the Seine near Giverny (Mist), Claude Monet, 1897'),
+  artwork('water-lilies', 'water lilies', '#5f86b0', true, 'Water Lilies, Claude Monet, 1906'),
+  artwork('haystacks', 'haystacks', '#c58a8a', true, 'Stacks of Wheat (Sunset, Snow Effect), Claude Monet, 1890-91'),
+  artwork('great-wave', 'great wave', '#d9c9a8', false, 'The Great Wave, Katsushika Hokusai, 1830/33'),
+  artwork('salerno', 'gulf of salerno', '#c8946a', true, 'The Gulf of Salerno, Joseph Wright of Derby, 1783-85'),
+  artwork('twilight', 'twilight', '#2f3a2a', true, 'Twilight in Italy, George Inness, 1890'),
+  artwork('mountain-mist', 'mountain mist', '#cbbd9a', false, 'Mountain Landscape in the Mist, Utagawa Kunisada I, c. 1830/44'),
+  artwork('kandinsky', 'two poplars', '#c0603f', false, 'Landscape with Two Poplars, Vasily Kandinsky, 1912'),
+  artwork('poppies', 'poppy field', '#8aa8d8', false, 'Poppy Field (Giverny), Claude Monet, 1890-91'),
+];
+
+export const BACKDROP_GROUPS: { id: BackdropGroup; label: string }[] = [
+  { id: 'classic', label: 'classic' },
+  { id: 'designs', label: 'designs' },
+  { id: 'artworks', label: 'artworks' },
 ];
 
 export interface StyleOptions {
@@ -155,8 +210,22 @@ function noiseTile(size: number): HTMLCanvasElement {
   return tile;
 }
 
-function paintBackdrop(ctx: CanvasRenderingContext2D, preset: BackdropPreset, width: number, height: number): void {
-  if (preset.kind === 'solid') {
+function paintBackdrop(
+  ctx: CanvasRenderingContext2D,
+  preset: BackdropPreset,
+  width: number,
+  height: number,
+  image: ImageBitmap | null,
+): void {
+  if (preset.kind === 'image' && image) {
+    // Scale to cover the whole canvas, centred, without stretching.
+    const scale = Math.max(width / image.width, height / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    ctx.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    return;
+  }
+  if (preset.kind === 'solid' || preset.kind === 'image') {
     ctx.fillStyle = preset.colors[0];
     ctx.fillRect(0, 0, width, height);
     return;
@@ -194,6 +263,7 @@ export function renderStyled(
   imageHeight: number,
   options: StyleOptions,
   title: string,
+  backdropImage: ImageBitmap | null = null,
 ): HTMLCanvasElement | null {
   const layout = styleLayout(imageWidth, imageHeight, options);
   if (!layout) return null;
@@ -204,7 +274,7 @@ export function renderStyled(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  paintBackdrop(ctx, preset, layout.width, layout.height);
+  paintBackdrop(ctx, preset, layout.width, layout.height, backdropImage);
 
   ctx.save();
   ctx.scale(layout.scale, layout.scale);
@@ -261,6 +331,29 @@ export function renderStyled(
   ctx.restore();
 
   return canvas;
+}
+
+const backdropImages = new Map<string, Promise<ImageBitmap | null>>();
+
+/**
+ * Loads a bundled backdrop image once and reuses it. Resolves to null for code-drawn backdrops and
+ * if the file cannot be read, in which case the preset's fallback colour is painted instead.
+ */
+export function loadBackdropImage(id: string): Promise<ImageBitmap | null> {
+  const preset = backdropPreset(id);
+  if (preset.kind !== 'image' || !preset.src) return Promise.resolve(null);
+  let pending = backdropImages.get(preset.id);
+  if (!pending) {
+    pending = fetch(chrome.runtime.getURL(preset.src!))
+      .then((response) => (response.ok ? response.blob() : Promise.reject(new Error(String(response.status)))))
+      .then((blob) => createImageBitmap(blob))
+      .catch(() => {
+        backdropImages.delete(preset.id); // allow a retry on the next render
+        return null;
+      });
+    backdropImages.set(preset.id, pending);
+  }
+  return pending;
 }
 
 const STYLE_KEY = 'kapture.style.v1';

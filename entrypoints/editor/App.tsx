@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { CaptureStore, captureDisplayName, type CaptureRecord } from '@/lib/db';
@@ -7,6 +7,9 @@ import { buildFilename, DEFAULT_FILENAME_TEMPLATE } from '@/lib/filename';
 import { extensionForMimeType } from '@/lib/recording';
 import {
   BACKDROPS,
+  BACKDROP_GROUPS,
+  loadBackdropImage,
+  type BackdropPreset,
   DEFAULT_STYLE,
   PADDING_RANGE,
   RADIUS_RANGE,
@@ -37,14 +40,20 @@ const TOOLS: { name: Tool; icon: string; label: string }[] = [
   { name: 'select', icon: 'select', label: 'select' },
   { name: 'arrow', icon: 'arrow', label: 'arrow' },
   { name: 'box', icon: 'box', label: 'box' },
-  { name: 'ellipse', icon: 'box', label: 'ellipse' },
-  { name: 'line', icon: 'arrow', label: 'line' },
+  { name: 'ellipse', icon: 'ellipse', label: 'ellipse' },
+  { name: 'line', icon: 'line', label: 'line' },
   { name: 'pen', icon: 'pen', label: 'pen' },
   { name: 'text', icon: 'text', label: 'text' },
   { name: 'blur', icon: 'blur', label: 'blur' },
   { name: 'step', icon: 'steps', label: 'step' },
   { name: 'crop', icon: 'crop', label: 'crop' },
 ];
+
+/** Swatch look for a backdrop: its image when it has one, else its colours. */
+function swatchStyle(preset: BackdropPreset): CSSProperties {
+  if (preset.src) return { backgroundColor: preset.colors[0], backgroundImage: `url(${chrome.runtime.getURL(preset.src)})` };
+  return { background: preset.colors.length === 2 ? `linear-gradient(135deg, ${preset.colors[0]}, ${preset.colors[1]})` : preset.colors[0] };
+}
 
 export function App() {
   const id = useMemo(() => new URLSearchParams(location.search).get('id'), []);
@@ -110,7 +119,9 @@ export function App() {
 
   function updateStyle(patch: Partial<StyleOptions>) {
     const next = { ...styleOpts, ...patch };
+    // Show the styled result at full size as soon as styling is turned on or changed.
     if (patch.enabled === false) setPreviewStyled(false);
+    else setPreviewStyled(true);
     setStyleOpts(next);
     void setStylePref(next);
   }
@@ -132,7 +143,8 @@ export function App() {
       small.height = Math.max(1, Math.round(bitmap.height * factor));
       small.getContext('2d')!.drawImage(bitmap, 0, 0, small.width, small.height);
       bitmap.close();
-      const styled = renderStyled(small, small.width, small.height, styleOpts, frameTitle(load.record.url, load.record.title));
+      const backdropImage = await loadBackdropImage(styleOpts.backdrop);
+      const styled = renderStyled(small, small.width, small.height, styleOpts, frameTitle(load.record.url, load.record.title), backdropImage);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       if (!styled) {
@@ -167,7 +179,8 @@ export function App() {
       source.height = Math.max(1, Math.round(bitmap.height * factor));
       source.getContext('2d')!.drawImage(bitmap, 0, 0, source.width, source.height);
       bitmap.close();
-      const styled = renderStyled(source, source.width, source.height, styleOpts, frameTitle(load.record.url, load.record.title));
+      const backdropImage = await loadBackdropImage(styleOpts.backdrop);
+      const styled = renderStyled(source, source.width, source.height, styleOpts, frameTitle(load.record.url, load.record.title), backdropImage);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       if (!styled) {
@@ -300,12 +313,9 @@ export function App() {
         break;
       case 'blur':
         if (img) {
-          ctx.clip();
-          const ox = a.x;
-          const oy = a.y;
           ctx.save();
           ctx.beginPath();
-          ctx.rect(ox, oy, a.w, a.h);
+          ctx.rect(a.x, a.y, a.w, a.h);
           ctx.clip();
           try {
             ctx.filter = `blur(${a.radius}px)`;
@@ -519,7 +529,8 @@ export function App() {
     const base = (await flatten()) ?? (load.state === 'ready' ? load.record.blob : null);
     if (!base || load.state !== 'ready' || !styleOpts.enabled) return base;
     const bitmap = await createImageBitmap(base);
-    const styled = renderStyled(bitmap, bitmap.width, bitmap.height, styleOpts, frameTitle(load.record.url, load.record.title));
+    const backdropImage = await loadBackdropImage(styleOpts.backdrop);
+      const styled = renderStyled(bitmap, bitmap.width, bitmap.height, styleOpts, frameTitle(load.record.url, load.record.title), backdropImage);
     bitmap.close();
     if (!styled) {
       setToast('too large to style. exported the plain image');
@@ -667,7 +678,10 @@ export function App() {
               key={t.name}
               aria-label={t.label}
               title={t.label}
-              onClick={() => setTool(t.name)}
+              onClick={() => {
+                setTool(t.name);
+                setPreviewStyled(false); // picking a tool goes back to editing
+              }}
               className={`rounded-md p-2 ${tool === t.name ? 'bg-raised text-fg' : 'text-muted hover:text-fg'}`}
             >
               <Icon name={t.icon as never} size={18} />
@@ -747,19 +761,26 @@ export function App() {
             </label>
             {styleOpts.enabled && (
               <div className="mt-3 flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="backdrop">
-                  {BACKDROPS.map((b) => (
-                    <button
-                      key={b.id}
-                      role="radio"
-                      aria-checked={styleOpts.backdrop === b.id}
-                      aria-label={b.label}
-                      title={b.label}
-                      onClick={() => updateStyle({ backdrop: b.id })}
-                      className={`size-6 rounded-full border ${styleOpts.backdrop === b.id ? 'ring-2 ring-fg' : 'border-rule'}`}
-                      style={{ background: b.colors.length === 2 ? `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` : b.colors[0] }}
-                      data-testid={`style-backdrop-${b.id}`}
-                    />
+                <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="backdrop">
+                  {BACKDROP_GROUPS.map((group) => (
+                    <div key={group.id}>
+                      <div className="mb-1 font-mono text-[11px] text-muted">{group.label}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {BACKDROPS.filter((b) => b.group === group.id).map((b) => (
+                          <button
+                            key={b.id}
+                            role="radio"
+                            aria-checked={styleOpts.backdrop === b.id}
+                            aria-label={b.label}
+                            title={b.credit ? `${b.label}: ${b.credit}` : b.label}
+                            onClick={() => updateStyle({ backdrop: b.id })}
+                            className={`size-7 rounded-md border bg-cover bg-center ${styleOpts.backdrop === b.id ? 'ring-2 ring-fg' : 'border-rule'}`}
+                            style={swatchStyle(b)}
+                            data-testid={`style-backdrop-${b.id}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
                 <div>
