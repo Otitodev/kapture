@@ -326,6 +326,77 @@ test('editor: style option frames copy and download but never the saved capture'
   await expect(ed.getByTestId('style-frame')).not.toBeChecked();
 });
 
+test('editor: image backdrops are painted behind the exported capture', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/library.html`); // opens the database so its stores exist
+  await page.evaluate(() => chrome.storage.local.remove('kapture.style.v1'));
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 400, 300);
+    const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/png'));
+    const open = indexedDB.open('kapture', 2);
+    const db: IDBDatabase = await new Promise((res, rej) => {
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction('captures', 'readwrite');
+      tx.objectStore('captures').put({ id: 'e2e-backdrops', type: 'screenshot', blob, url: 'https://www.acme.com/', title: 'acme', createdAt: Date.now(), tags: [] });
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+  const ed = await context.newPage();
+  await ed.goto(`chrome-extension://${extensionId}/editor.html?id=e2e-backdrops`);
+  await expect(ed.getByTestId('capture-image')).toBeVisible();
+  await ed.getByTestId('style-enabled').check();
+
+  // Reads the top-left pixel of a downloaded export: that corner is backdrop, outside the window.
+  const cornerOf = async (file: string) => {
+    const base64 = fs.readFileSync(file).toString('base64');
+    return ed.evaluate(async (data) => {
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      const px = ctx.getImageData(4, 4, 1, 1).data;
+      const bottom = ctx.getImageData(4, bitmap.height - 4, 1, 1).data;
+      return { width: bitmap.width, height: bitmap.height, r: px[0]!, g: px[1]!, b: px[2]!, bottom: [bottom[0]!, bottom[1]!, bottom[2]!] };
+    }, base64);
+  };
+  const exportWith = async (backdrop: string) => {
+    await ed.getByTestId(`style-backdrop-${backdrop}`).click();
+    await expect(ed.getByTestId(`style-backdrop-${backdrop}`)).toHaveAttribute('aria-checked', 'true');
+    const [download] = await Promise.all([ed.waitForEvent('download'), ed.getByTestId('download').click()]);
+    return cornerOf((await download.path())!);
+  };
+
+  const dusk = await exportWith('neon-dusk'); // near-black asphalt
+  expect(dusk.width).toBe(464); // padding and frame sizes do not depend on the backdrop
+  expect(dusk.r).toBeLessThan(110);
+  expect(dusk.b).toBeLessThan(140);
+  const cobalt = await exportWith('cobalt'); // white page
+  expect(cobalt.r).toBeGreaterThan(235);
+  expect(cobalt.g).toBeGreaterThan(235);
+  // Signal's chrome-yellow strip runs along its bottom edge. Only the real image has it: the
+  // fallback colour is near-black, so this fails if the image did not load.
+  const signal = await exportWith('signal');
+  expect(signal.bottom[0]).toBeGreaterThan(230);
+  expect(signal.bottom[1]).toBeGreaterThan(180);
+  expect(signal.bottom[2]).toBeLessThan(80);
+  const mist = await exportWith('art-mist'); // Monet's lavender mist
+  expect(mist.b).toBeGreaterThan(mist.r + 10);
+  expect(mist.r).toBeGreaterThan(110);
+});
+
 test('editor: can annotate, undo, and see the layer count', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/editor.html?id=seed`);
